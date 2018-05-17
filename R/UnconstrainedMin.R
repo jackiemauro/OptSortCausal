@@ -6,17 +6,19 @@
 #'
 
 mat.pred <- function(df, A, mu, aLevel){
-  t <- df #need to replace distance with like dist[,a]
+  t <- df
   t$obsD <- aLevel[,A]
   t$A <- A
   predict(mu, t)$pre
 }
 sl.pred <- function(a.val, train.df, Xtrain, Xtest, sl.lib){
+  # need to add obsD
   out = SuperLearner(Y = as.numeric(train.df$A==a.val), X = Xtrain, family = binomial(), SL.library = sl.lib)
   preds = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
   return(preds)
 }
 lg.pred <- function(a.val, train.df, Xtrain, Xtest){
+  # need to add obsD
   d <- cbind(as.numeric(a.val==train.df$A),Xtrain); names(d)<-c('A',names(Xtrain))
   preds <- predict(glm(A~., data = d, family = binomial), newdata = Xtest, type = 'response')
   return(preds)
@@ -27,7 +29,7 @@ rg.pred <- function(a.val, train.df, Xtrain, Xtest, aMat.train, aMat.test){
   d$obsD <- aMat.train[,a.val]
   Xtest$obsD <- aMat.test[,a.val]
   preds <- predict(ranger::ranger(as.factor(A)~., data = d, write.forest = T, probability = T), Xtest)$pre
-  return(preds)
+  return(preds[,2])
 }
 
 
