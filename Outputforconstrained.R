@@ -44,11 +44,11 @@ make.phihat <- function(df,aLevel,obsD){
 
     # train and predict mu and pi models
     muhat <- lapply(Avals, function(a) mu.pred(a.val = a, train.df = train.df, test.df = test.df, aLevel = aMat.test))
-    pihat <- lapply(Avals, function(a) pi.pred.rg(a.val = a, train.df = train.df, Xtrain = Xtrain, Xtest = Xtest, aMat.train=aMat.train, aMat.test=aMat.test))
+    pihat <- lapply(Avals, function(a) pi.pred.lg(a.val = a, train.df = train.df, Xtrain = Xtrain, Xtest = Xtest, aMat.train=aMat.train, aMat.test=aMat.test))
 
     # truncate pi values
-    for(i in 1:25){pihat[[i]][which(pihat[[i]]<1e-3)] = 1e-3}
-    for(i in 1:25){pihat[[i]][which(pihat[[i]]>1-1e-3)] = 1-1e-3}
+    # for(i in 1:25){pihat[[i]][which(pihat[[i]]<1e-3)] = 1e-3}
+    # for(i in 1:25){pihat[[i]][which(pihat[[i]]>1-1e-3)] = 1-1e-3}
 
     # output phihat matrix, pi's and mu's
     out.pi[s!=rnd,] <- matrix(unlist(pihat), ncol = n.avals)
@@ -109,12 +109,9 @@ write.csv(out[[1]], '~jacquelinemauro/Dropbox/sorter/phihat_logistic.csv')
 
 #assignedP <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment.csv', header = F)
 assignedP.fudge <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment.csv', header = F)
-mean(assignedP.fudge != pris.dummies[to.keep,])
 
-assig.vec <- apply(assignedP,1,which.max)
-mean(assig.vec == df$A)
+#assig.vec <- apply(assignedP,1,which.max)
 assig.fudge <- apply(assignedP.fudge,1,which.max)
-mean(assig.fudge == df$A)
 
 est <- mean(apply(out[[1]]*assignedP.fudge,1,sum))
 sd <- sd(apply(out[[1]]*assignedP.fudge,1,sum))/sqrt(dim(df)[1])
@@ -123,3 +120,52 @@ plot(c(table(assig.fudge)) ~ c(table(df$A)), pch = 19,
      xlab = "Observed Counts", ylab = "Counts after Constrained Assignment",
      main = "Prisoner Counts before and after Constrained Assignment")
 abline(0,1)
+#### use ranger in combined code ----
+out.combo <- constr.opt.causal(df, dist.mat, obsD)
+write.csv(out.combo$phihat, '~jacquelinemauro/Dropbox/sorter/phihat_np.csv')
+
+assignedP.fudge <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment.csv', header = F)
+assig.fudge <- apply(assignedP.fudge,1,which.max)
+
+est <- mean(apply(out.combo$phihat*assignedP.fudge,1,sum))
+sd <- sd(apply(out.combo$phihat*assignedP.fudge,1,sum))/sqrt(dim(df)[1])
+
+#### using muhat to minimize ----
+out = make.phihat(df, aLevel = dist.mat, obsD = obsD)
+write.csv(out$muhat, '~jacquelinemauro/Dropbox/sorter/muhat_logistic.csv')
+assignedP.mufudge <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_mu.csv', header = F)
+assig.mu <- apply(assignedP.mufudge,1,which.max)
+
+muhat <- diag(out$muhat %*% t(assignedP.mufudge))
+pihat <- diag(out$pihat %*% t(assignedP.mufudge))
+
+ifvals <- (as.numeric(df$A == assig.mu)/pihat)*(df$y - muhat) + muhat
+est <- mean(ifvals)
+sd <- sd(ifvals)/sqrt(length(ifvals))
+
+#### using combined code and muhat ----
+# not great cause pihat's aren't truncated, just use plug in
+out.combo <- constr.opt.causal(df, dist.mat, obsD)
+write.csv(out.combo$muhat, '~jacquelinemauro/Dropbox/sorter/muhat_np.csv')
+write.csv(out.combo$phihat, '~jacquelinemauro/Dropbox/sorter/phihat_np.csv')
+#write.csv(out.combo$muhat, '~jacquelinemauro/Dropbox/sorter/muhat_logistic.csv')
+
+assignedP.mufudge <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_mu.csv', header = F)
+assig.mu <- apply(assignedP.mufudge,1,which.max)
+
+muhat <- diag(out.combo$muhat %*% t(assignedP.mufudge))
+plug.in.est <- mean(muhat)
+
+pihat <- diag(out.combo$pihat %*% t(assignedP.mufudge))
+
+ifvals <- (as.numeric(df$A == assig.mu)/pihat)*(df$y - muhat) + muhat
+est <- mean(ifvals)
+sd <- sd(ifvals)/sqrt(length(ifvals))
+
+# compare to observed
+obs.psi <- mean(df$y)
+obs.muhat <- diag(out$muhat %*% t(pris.dummies))
+obs.pihat <- diag(out$pihat %*% t(pris.dummies))
+obs.ifvals <- (1/obs.pihat)*(df$y - obs.muhat) + obs.muhat
+est <- mean(obs.ifvals)
+sd <- sd(obs.ifvals)/sqrt(length(obs.ifvals))

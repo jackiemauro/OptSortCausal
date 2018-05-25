@@ -48,6 +48,11 @@ constr.opt.causal <- function(df,aLevel,obsD){
     phat.pre = matrix(unlist(lapply(Avals, function(a) rg.pred(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest,
                                                                aMat.train=aMat.train, aMat.test=aMat.test)))
                       ,ncol = length(Avals), byrow = F)
+    
+    # truncate pi values
+    phat.pre[phat.pre < 1e-3] = 1e-3
+    phat.pre[phat.pre > 1-1e-3] = 1-1e-3
+    
     temp = t(sapply(Avals, function(x) as.numeric(test.df$A == x)))
     phat = diag(phat.pre %*% temp)
     
@@ -89,15 +94,19 @@ mat.pred <- function(df, A, mu, aLevel){
   t$A <- A
   predict(mu, t)$pre
 }
-sl.pred <- function(a.val, train.df, Xtrain, Xtest, sl.lib){
+sl.pred <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"), aMat.train, aMat.test){
   # need to add obsD
+  Xtrain$obsD <- aMat.train[,a.val]
+  Xtest$obsD <- aMat.test[,a.val]
   out = SuperLearner(Y = as.numeric(train.df$A==a.val), X = Xtrain, family = binomial(), SL.library = sl.lib)
   preds = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
   return(preds)
 }
-lg.pred <- function(a.val, train.df, Xtrain, Xtest){
+lg.pred <- function(a.val, train.df, Xtrain, Xtest, aMat.train, aMat.test){
   # need to add obsD
   d <- cbind(as.numeric(a.val==train.df$A),Xtrain); names(d)<-c('A',names(Xtrain))
+  d$obsD <- aMat.train[,a.val]
+  Xtest$obsD <- aMat.test[,a.val]
   preds <- predict(glm(A~., data = d, family = binomial), newdata = Xtest, type = 'response')
   return(preds)
 }

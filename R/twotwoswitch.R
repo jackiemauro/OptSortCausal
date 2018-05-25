@@ -1,14 +1,14 @@
 # switching 2 by 2
 
 # B = 10000
-# 
+#
 # N = 1000
 # x = rnorm(N,0,1)                                # covariates
 # s = sample(c(1,3), size = N, replace = T)       # security level
 # p = sample(c(1:5), size = N, replace = T)       # prison assigned
 # pi = exp(s + x - p/2) / (1 + exp(s + x - p/2))  # true prob recid at observed
 # y = rbinom(N, 1, pi)                            # recidivate
-# 
+#
 # df <- data.frame(y,p,s,x)
 # pot.pi = sapply(c(1:5), function(y) exp(s + x - y/2) / (1 + exp(s + x - y/2)))
 
@@ -26,7 +26,7 @@ switch22 <- function(df,B){
     p1      <- sample(dim(df)[1], size = 1, replace = F)
     p2      <- sample(c(1:dim(df)[1])[-p1], size = 1, replace = F)
     pair    <- c(p1,p2)
-    D       <- out.df[-pair,]
+    D       <- df[-pair,]
     pair.covs <- out.df[pair,3:dim(df)[2]]
     pair.a <- out.df[pair,2]
     if(pair.a[1]==pair.a[2]){
@@ -36,12 +36,12 @@ switch22 <- function(df,B){
     else{
       newdata <- as.data.frame(cbind(rep(pair.a, each = 2), rbind(pair.covs,pair.covs)))
       names(newdata) <- names(df)[2:dim(df)[2]]
-      
+
       mu.hat <- predict(glm(y~., data = D, family = binomial), newdata = newdata, type = 'response')
       orig    <- mu.hat[1]+mu.hat[4]
       new     <- mu.hat[2]+mu.hat[3]
       if(orig <= new){
-        P = out.df$a[pair] 
+        P = out.df$a[pair]
         new.mu[pair] = mu.hat[c(1,4)]
         ch[j+1] = 0
       } else{
