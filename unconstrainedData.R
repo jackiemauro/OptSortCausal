@@ -4,6 +4,7 @@ dat$no.visits.last.loc <- (1 - dat$visitslastlocyn1)
 dat$no.childvisits <- (1 - dat$childyn)
 dat$maxtime <- apply(dat[,2:26],1,max)
 dat <- dat[-which(dat$NCRecid.Event == 'reincarceration'),] #drop if they go back for parole violation
+nm  <- names(dat)
 
 options(na.action='na.pass')
 county.f = factor(dat$CountyClass); county.dummies = model.matrix(~county.f)[,-c(1,2)]
@@ -13,30 +14,24 @@ dist.mat <- dat[,which(nm=='ALB_time'):which(nm=='WAM_time')]
 names(dist.mat)<-names(pris.dummies)
 dat$A <- apply(pris.dummies,1,which.max)
 dat$nmA <- apply(pris.dummies,1,function(x) names(pris.dummies)[which.max(x)])
+cov.loc <- c(which(nm=="loslastloc"):which(nm=='white'),which(nm=="urban"):which(nm=='ageyrs'),
+             which(nm=="custody_level"):which(nm=="numofpriorinc"),
+             which(nm=='visitslastloc1'):which(nm=='highschoolgrad'),
+             which(nm=='numofvisitsever'),which(nm=='child'),which(nm=='parent'),which(nm=='spouse'),
+             which(nm=='friendsnonfamily'),#which(nm=='familyother'),
+             which(nm=='numoftotalmisconducts'))
+covs <- dat[,cov.loc]
 
-# using minimum distance prison as a proxy for home location
-nm = names(dat)
-covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='ageyrs')],#dat[,which(nm=='total_time')],
-             dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],
-             dat[,which(nm=='numofvisitsever')],
-             dat[,which(nm=='child')], dat[,which(nm=='parent')], dat[,which(nm=='spouse')],
-             dat[,which(nm=='friendsnonfamily')],
-             dat[,which(nm=='numofpriormisconducts')]
-             )
-
-df <- as.data.frame(cbind(dat$NCRecid3, dat$A, covs))
+df <- data.frame(y=dat$NCRecid3, A=dat$A, covs)
 to.keep <- complete.cases(df)
 df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved values
-names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = "")))
 obsD <- dat$total_time[to.keep]
 dist.mat <- dist.mat[to.keep,]
+
 write.csv(df, "~jacquelinemauro/CompleteCasesPrisoners.csv")
 write.csv(as.numeric(to.keep), "~jacquelinemauro/CompleteCases.csv")
 
-
-out <- unconstrained.min.par(df)
-out.lg <- unconstrained.min.lg(df) #rl bad (> 1)
-out.rg <- unconstrained.min.rg(df) #believable?
+out.rg <- unconstrained.min.rg(df)
 write.csv(out.rg$assig, "~jacquelinemauro/OptSortCausal/assignmentVectorRg.csv")
 
 plot(jitter(out.rg$assig.vec), jitter(df$A),
@@ -48,3 +43,6 @@ plot(c(table(out.rg$assig)) ~ c(table(df$A)), pch = 19,
      xlab = "Observed Counts", ylab = "Counts after Assignment",
      main = "Change in Prisoner Counts before and after Assignment")
 abline(0,1)
+
+##### using combined opt and fuller data ####
+out <- constr.opt.causal(df, aLevel = dist.mat, obsD = obsD)

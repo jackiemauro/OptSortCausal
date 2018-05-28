@@ -16,7 +16,6 @@ dat$no.visits.last.loc <- (1 - dat$visitslastlocyn1)
 dat$no.childvisits <- (1 - dat$childyn)
 dat$maxtime <- apply(dat[,2:26],1,max)
 dat <- dat[-which(dat$NCRecid.Event == 'reincarceration'),] #drop if they go back for parole violation
-nm  <- names(dat)
 
 options(na.action='na.pass')
 county.f = factor(dat$CountyClass); county.dummies = model.matrix(~county.f)[,-c(1,2)]
@@ -26,14 +25,15 @@ dist.mat <- dat[,which(nm=='ALB_time'):which(nm=='WAM_time')]
 names(dist.mat)<-names(pris.dummies)
 dat$A <- apply(pris.dummies,1,which.max)
 dat$nmA <- apply(pris.dummies,1,function(x) names(pris.dummies)[which.max(x)])
-cov.loc <- c(which(nm=="loslastloc"):which(nm=='white'),which(nm=="urban"):which(nm=='ageyrs'),
-             which(nm=="custody_level"):which(nm=="numofpriorinc"),
-             which(nm=='visitslastloc1'):which(nm=='highschoolgrad'),
-             which(nm=='numofvisitsever'),which(nm=='child'),which(nm=='parent'),which(nm=='spouse'),
-             which(nm=='friendsnonfamily'),which(nm=='familyother'),which(nm=='numoftotalmisconducts'))
-covs <- dat[,cov.loc]
 
-df <- data.frame(y=dat$NCRecid3, A=dat$A, covs)
+# using minimum distance prison as a proxy for home location
+nm = names(dat)
+cov.loc = c(which(nm=="loslastloc"):which(nm=='ageyrs'),which(nm=='visitslastloc1'):which(nm=='highschoolgrad'),
+            which(nm=='numofvisitsever'),which(nm=='child'),which(nm=='parent'),which(nm=='spouse'),
+            which(nm=='friendsnonfamily'),which(nm=='numofpriormisconducts'))
+covs = dat[,cov.loc]
+
+df <- data.frame(y = dat$NCRecid3, A = dat$A, covs)
 to.keep <- complete.cases(df)
 df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved values
 obsD <- dat$total_time[to.keep]
@@ -44,6 +44,15 @@ Constr.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_mu.csv
 fU <- read.csv("~jacquelinemauro/OptSortCausal/assignmentVectorRg.csv")[,-1]
 fC <- apply(Constr.mat,1,which.max)
 fO <- df$A
+
+orig.dist <- count(df$A)$freq
+unc.dist <- count(fU)$freq
+con.dist <- count(fC)$freq
+
+unc.change <- unc.dist - orig.dist
+con.change <- con.dist - orig.dist
+
+dfU <- dfC <- df; dfU$A <- fU; dfC$A <- fC
 
 ########## study the people who aren't moved #########
 # how often do the vectors agree? almost never
@@ -69,10 +78,105 @@ Mode = function(x){
   return(mod)
 }
 
-unmoved.C.stats <- round(apply(df[unmovedC,], 2, mean),2); unmoved.C.stats[2] <- names(pris.dummies)[Mode(df[unmovedC,]$A)]
-unmoved.U.stats <- round(apply(df[unmovedU,], 2, mean),2); unmoved.U.stats[2] <- names(pris.dummies)[Mode(df[unmovedU,]$A)]
-all.data.stats <- round(apply(df, 2, mean),2); all.data.stats[2] <- names(pris.dummies)[Mode(df$A)]
+unmoved.C.stats <- round(apply(df[unmovedC,], 2, mean),2)
+unmoved.C.stats[2] <- names(pris.dummies)[Mode(df[unmovedC,]$A)]
+unmoved.C.stats[21] <- round(mean(obsD[unmovedC]),2)
+unmoved.U.stats <- round(apply(df[unmovedU,], 2, mean),2)
+unmoved.U.stats[2] <- names(pris.dummies)[Mode(df[unmovedU,]$A)]
+unmoved.U.stats[21] <- round(mean(obsD[unmovedU]),2)
+all.data.stats <- round(apply(df, 2, mean),2)
+all.data.stats[2] <- names(pris.dummies)[Mode(df$A)]
+all.data.stats[21] <- round(mean(obsD),2)
+
 unmoved.compare <- data.frame(Original = all.data.stats, Unconstrained = unmoved.U.stats, Constrained = unmoved.C.stats)
 
 print(xtable(unmoved.compare, caption = 'Comparing those not moved'), file = "~jacquelinemauro/Dropbox/sorter/unmovedStats.tex")
 
+
+
+##
+
+########## compare current recid_a vs. predicted after sort #########
+recid.model <- ranger::ranger(y ~ ., data = df, write.forest = T)
+pred.recid.unc <- predict(recid.model, data = dfU, type = 'response')$pre
+pred.recid.con <- predict(recid.model, data = dfC, type = 'response')$pre
+
+# overall dists
+summary(df$y)
+summary(pred.recid.unc)
+summary(pred.recid.con)
+
+
+# by prison
+curr.recid <- round(ddply(df, .(A), summarize, Recid = mean(y))$Recid,2)
+unc.recid <- round(ddply(data.frame(df, pred.recid.unc), .(A), summarize, Recid = mean(pred.recid.unc))$Recid,2)
+con.recid <- round(ddply(data.frame(df, pred.recid.con), .(A), summarize, Recid = mean(pred.recid.con))$Recid,2)
+compare.recid <- data.frame(Prison = names(pris.dummies), Original = curr.recid, Unconstrained = unc.recid, Constrained = con.recid,
+                            UnconstrainedChange = unc.change, ConstrainedChange = con.change)
+
+########## compare current visit_a vs. predicted after sort #########
+visit.model <- ranger::ranger(numofvisitsever ~ ., data = df, write.forest = T)
+dfU <- dfC <- df; dfU$A <- fU; dfC$A <- fC
+pred.visit.unc <- predict(visit.model, data = dfU, type = 'response')$pre
+pred.visit.con <- predict(visit.model, data = dfC, type = 'response')$pre
+
+# overall dists
+summary(df$numofvisitsever)
+summary(pred.visit.unc)
+summary(pred.visit.con)
+
+par(mfrow = c(1,3))
+hist(log(df$numofvisitsever), xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
+hist(log(round(pred.visit.unc)), xlim = c(0,7), main = "Unconstrained", xlab = "Log of Visits Predicted")
+hist(log(round(pred.visit.con)), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
+par(mfrow = c(1,1))
+
+# by prison
+curr.visit <- round(ddply(df, .(A), summarize, Visits = mean(numofvisitsever))$Visits,2)
+unc.visit <- round(ddply(data.frame(df, pred.visit.unc), .(A), summarize, Visits = mean(pred.visit.unc))$Visits,2)
+con.visit <- round(ddply(data.frame(df, pred.visit.con), .(A), summarize, Visits = mean(pred.visit.con))$Visits,2)
+compare.visits <- data.frame(Prison = names(pris.dummies), Original = curr.visit, Unconstrained = unc.visit, Constrained = con.visit,
+                             UnconstrainedChange = unc.change, ConstrainedChange = con.change)
+########## compare current distance_a vs. predicted after sort #########
+ddf <- data.frame(df,obsD)
+dist.model <- ranger::ranger(obsD ~ ., data = ddf, write.forest = T)
+dfU <- dfC <- ddf; dfU$A <- fU; dfC$A <- fC
+pred.dist.unc <- predict(dist.model, data = dfU, type = 'response')$pre
+pred.dist.con <- predict(dist.model, data = dfC, type = 'response')$pre
+
+# overall dists
+summary(obsD)
+summary(pred.dist.unc)
+summary(pred.dist.con)
+
+par(mfrow = c(1,3))
+hist(obsD, xlim = c(0,500), main = "Observed", xlab = "Distances Observed")
+hist(pred.dist.unc, xlim = c(0,500), main = "Unconstrained", xlab = "Unconstrained Distances")
+hist(pred.dist.con, xlim = c(0,500), main = "Constrained", xlab = "Constrained Distances")
+par(mfrow = c(1,1))
+
+# by prison
+curr.dist <- round(ddply(ddf, .(A), summarize, dists = mean(obsD))$dists,2)
+unc.dist <- round(ddply(data.frame(df, pred.dist.unc), .(A), summarize, dists = mean(pred.dist.unc))$dists,2)
+con.dist <- round(ddply(data.frame(df, pred.dist.con), .(A), summarize, dists = mean(pred.dist.con))$dists,2)
+compare.dists <- data.frame(Prison = names(pris.dummies), Original = curr.dist, Unconstrained = unc.dist, Constrained = con.dist,
+                             UnconstrainedChange = unc.change, ConstrainedChange = con.change)
+
+# more than half of prisoners are moved farther from home
+unc.harm <- mean(obsD < pred.dist.unc)
+constr.harm <- mean(obsD < pred.dist.con)
+########## compare demographic concentration #############
+# using ICC
+
+get.icc <- function(covariate){
+  i1 = ICCbare(as.factor(A), df[,covariate], df)
+  i2 = ICCbare(as.factor(fU), df[,covariate], dfU)
+  i3 = ICCbare(as.factor(fC), df[,covariate], dfC)
+  return(c(i1,i2,i3))
+}
+
+# drop visits because those can change based on location
+iccs <- round(100*matrix(unlist(lapply(c(3:dim(df)[2]), function(C) get.icc(C))), ncol = 3, byrow = T),2)
+iccs <- data.frame(covariate = names(df)[3:dim(df)[2]], iccs)
+names(iccs) <- c("Covariate", "Observed", "Unconstrained", "Constrained")
+print(xtable(iccs,caption = "Intraclass Correlation Coefficients",label = "tab:ICC"),file = "~jacquelinemauro/Dropbox/sorter/ICC.tex")
