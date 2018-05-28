@@ -4,30 +4,26 @@
 #' the outcome should be named "y", the treatment should be named "A",
 #' the 3rd through final columns will be considered covariates.
 #'
-
-mat.pred <- function(df, A, mu, aLevel){
+mat.pred1 <- function(df, A, mu){
   t <- df
-  t$obsD <- aLevel[,A]
   t$A <- A
   predict(mu, t)$pre
 }
-sl.pred <- function(a.val, train.df, Xtrain, Xtest, sl.lib){
+sl.pred1 <- function(a.val, train.df, Xtrain, Xtest, sl.lib){
   # need to add obsD
   out = SuperLearner(Y = as.numeric(train.df$A==a.val), X = Xtrain, family = binomial(), SL.library = sl.lib)
   preds = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
   return(preds)
 }
-lg.pred <- function(a.val, train.df, Xtrain, Xtest){
+lg.pred1 <- function(a.val, train.df, Xtrain, Xtest){
   # need to add obsD
   d <- cbind(as.numeric(a.val==train.df$A),Xtrain); names(d)<-c('A',names(Xtrain))
   preds <- predict(glm(A~., data = d, family = binomial), newdata = Xtest, type = 'response')
   return(preds)
 }
-rg.pred <- function(a.val, train.df, Xtrain, Xtest, aMat.train, aMat.test){
+rg.pred1 <- function(a.val, train.df, Xtrain, Xtest){
   library('ranger')
   d <- cbind(as.numeric(a.val==train.df$A),Xtrain); names(d)<-c('A',names(Xtrain))
-  d$obsD <- aMat.train[,a.val]
-  Xtest$obsD <- aMat.test[,a.val]
   preds <- predict(ranger::ranger(as.factor(A)~., data = d, write.forest = T, probability = T), Xtest)$pre
   return(preds[,2])
 }
@@ -69,7 +65,7 @@ unconstrained.min <- function(df){
     obs.mu = diag(preds %*% temp)
 
     ### get P(A=a|X) for each a
-    phat.pre = matrix(unlist(lapply(Avals, function(a) sl.pred(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest,sl.lib=sl.lib)))
+    phat.pre = matrix(unlist(lapply(Avals, function(a) sl.pred1(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest,sl.lib=sl.lib)))
                       ,ncol = length(Avals), byrow = F)
     phat = diag(phat.pre %*% temp)
 
@@ -124,7 +120,7 @@ unconstrained.min.lg <- function(df){
     obs.mu = diag(preds %*% temp)
 
     ### get P(A=a|X) for each a
-    phat.pre = matrix(unlist(lapply(Avals, function(a) lg.pred(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest)))
+    phat.pre = matrix(unlist(lapply(Avals, function(a) lg.pred1(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest)))
                       ,ncol = length(Avals), byrow = F)
     phat = diag(phat.pre %*% temp)
 
@@ -170,7 +166,7 @@ unconstrained.min.rg <- function(df){
     mu <- ranger::ranger(y~., data = train.df, write.forest = TRUE)
 
     ### predict E(Y|A = a, X) for each a
-    preds <- matrix(unlist(lapply(Avals, function(a) mat.pred(df = test.df, A = a, mu = mu))),
+    preds <- matrix(unlist(lapply(Avals, function(a) mat.pred1(df = test.df, A = a, mu = mu))),
                     ncol = length(Avals), byrow = F)
 
     ### get assignment vector f and E(Y| A = f, X)
@@ -180,7 +176,7 @@ unconstrained.min.rg <- function(df){
     obs.mu = diag(preds %*% temp)
 
     ### get P(A=a|X) for each a
-    phat.pre = matrix(unlist(lapply(Avals, function(a) rg.pred(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest)))
+    phat.pre = matrix(unlist(lapply(Avals, function(a) rg.pred1(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest)))
                       ,ncol = length(Avals), byrow = F)
     phat = diag(phat.pre %*% temp)
 
