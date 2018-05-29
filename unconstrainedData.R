@@ -43,5 +43,4 @@ plot(c(table(out.rg$assig)) ~ c(table(df$A)), pch = 19,
      main = "Change in Prisoner Counts before and after Assignment")
 abline(0,1)
 
-##### using combined opt and fuller data ####
-out <- constr.opt.causal(df, aLevel = dist.mat, obsD = obsD)
+

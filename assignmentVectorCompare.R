@@ -1,6 +1,6 @@
 # comparing the assignment vectors between constrained and unconstrained
 
-# questions of interest: 
+# questions of interest:
 #   in what way does predicted recid change; are all high risk ppl getting concentrated?
 #   how does the distribution of distance from home change?
 #   how many people are moved further from home ("harmed")?
@@ -10,7 +10,7 @@
 #     -- criminality: length of stay/violent/lsir score/custody level/arrests/inc's/misconducts
 #     -- do these become more/less concentrated?
 
-####### load data and vectors ####### 
+####### load data and vectors #######
 dat <- read.csv('~jacquelinemauro/MergedData.csv')[,-1]
 dat$no.visits.last.loc <- (1 - dat$visitslastlocyn1)
 dat$no.childvisits <- (1 - dat$childyn)
@@ -52,7 +52,12 @@ con.dist <- count(fC)$freq
 unc.change <- unc.dist - orig.dist
 con.change <- con.dist - orig.dist
 
-dfU <- dfC <- df; dfU$A <- fU; dfC$A <- fC
+# set up datasets for each of the assignments -- not run
+D <- df; D$dist <- obsD
+dfU <- dfC <- D
+dfU$A <- fU; dfC$A <- fC
+dfU$dist <- diag(dist.mat %*% t(sapply(unique(df$A), function(x) as.numeric(fU == x))))
+dfC$dist <- diag(dist.mat %*% t(sapply(unique(df$A), function(x) as.numeric(fC == x))))
 
 ########## study the people who aren't moved #########
 # how often do the vectors agree? almost never
@@ -67,7 +72,7 @@ unmovedU <- which(fU == fO)
 
 library(plyr)
 library(xtable)
-Mode = function(x){ 
+Mode = function(x){
   ta = table(x); tam = max(ta)
   if (all(ta == tam)) mod = NA
   else
@@ -97,50 +102,48 @@ print(xtable(unmoved.compare, caption = 'Comparing those not moved'), file = "~j
 ##
 
 ########## compare current recid_a vs. predicted after sort #########
-recid.model <- ranger::ranger(y ~ ., data = df, write.forest = T)
+recid.model <- ranger::ranger(y ~ ., data = D, write.forest = T)
 pred.recid.unc <- predict(recid.model, data = dfU, type = 'response')$pre
 pred.recid.con <- predict(recid.model, data = dfC, type = 'response')$pre
 
 # overall dists
-summary(df$y)
+summary(D$y)
 summary(pred.recid.unc)
 summary(pred.recid.con)
 
 
 # by prison
-curr.recid <- round(ddply(df, .(A), summarize, Recid = mean(y))$Recid,2)
-unc.recid <- round(ddply(data.frame(df, pred.recid.unc), .(A), summarize, Recid = mean(pred.recid.unc))$Recid,2)
-con.recid <- round(ddply(data.frame(df, pred.recid.con), .(A), summarize, Recid = mean(pred.recid.con))$Recid,2)
+curr.recid <- round(ddply(D, .(A), summarize, Recid = mean(y))$Recid,2)
+unc.recid <- round(ddply(data.frame(D, pred.recid.unc), .(A), summarize, Recid = mean(pred.recid.unc))$Recid,2)
+con.recid <- round(ddply(data.frame(D, pred.recid.con), .(A), summarize, Recid = mean(pred.recid.con))$Recid,2)
 compare.recid <- data.frame(Prison = names(pris.dummies), Original = curr.recid, Unconstrained = unc.recid, Constrained = con.recid,
                             UnconstrainedChange = unc.change, ConstrainedChange = con.change)
 
 ########## compare current visit_a vs. predicted after sort #########
-visit.model <- ranger::ranger(numofvisitsever ~ ., data = df, write.forest = T)
-dfU <- dfC <- df; dfU$A <- fU; dfC$A <- fC
+visit.model <- ranger::ranger(numofvisitsever ~ ., data = D, write.forest = T)
 pred.visit.unc <- predict(visit.model, data = dfU, type = 'response')$pre
 pred.visit.con <- predict(visit.model, data = dfC, type = 'response')$pre
 
 # overall dists
-summary(df$numofvisitsever)
+summary(D$numofvisitsever)
 summary(pred.visit.unc)
 summary(pred.visit.con)
 
 par(mfrow = c(1,3))
-hist(log(df$numofvisitsever), xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
+hist(log(D$numofvisitsever), xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
 hist(log(round(pred.visit.unc)), xlim = c(0,7), main = "Unconstrained", xlab = "Log of Visits Predicted")
 hist(log(round(pred.visit.con)), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
 par(mfrow = c(1,1))
 
 # by prison
-curr.visit <- round(ddply(df, .(A), summarize, Visits = mean(numofvisitsever))$Visits,2)
-unc.visit <- round(ddply(data.frame(df, pred.visit.unc), .(A), summarize, Visits = mean(pred.visit.unc))$Visits,2)
-con.visit <- round(ddply(data.frame(df, pred.visit.con), .(A), summarize, Visits = mean(pred.visit.con))$Visits,2)
+curr.visit <- round(ddply(D, .(A), summarize, Visits = mean(numofvisitsever))$Visits,2)
+unc.visit <- round(ddply(data.frame(D, pred.visit.unc), .(A), summarize, Visits = mean(pred.visit.unc))$Visits,2)
+con.visit <- round(ddply(data.frame(D, pred.visit.con), .(A), summarize, Visits = mean(pred.visit.con))$Visits,2)
 compare.visits <- data.frame(Prison = names(pris.dummies), Original = curr.visit, Unconstrained = unc.visit, Constrained = con.visit,
                              UnconstrainedChange = unc.change, ConstrainedChange = con.change)
+
 ########## compare current distance_a vs. predicted after sort #########
-ddf <- data.frame(df,obsD)
-dist.model <- ranger::ranger(obsD ~ ., data = ddf, write.forest = T)
-dfU <- dfC <- ddf; dfU$A <- fU; dfC$A <- fC
+dist.model <- ranger::ranger(dist ~ ., data = D, write.forest = T)
 pred.dist.unc <- predict(dist.model, data = dfU, type = 'response')$pre
 pred.dist.con <- predict(dist.model, data = dfC, type = 'response')$pre
 
@@ -156,7 +159,7 @@ hist(pred.dist.con, xlim = c(0,500), main = "Constrained", xlab = "Constrained D
 par(mfrow = c(1,1))
 
 # by prison
-curr.dist <- round(ddply(ddf, .(A), summarize, dists = mean(obsD))$dists,2)
+curr.dist <- round(ddply(D, .(A), summarize, dists = mean(dist))$dists,2)
 unc.dist <- round(ddply(data.frame(df, pred.dist.unc), .(A), summarize, dists = mean(pred.dist.unc))$dists,2)
 con.dist <- round(ddply(data.frame(df, pred.dist.con), .(A), summarize, dists = mean(pred.dist.con))$dists,2)
 compare.dists <- data.frame(Prison = names(pris.dummies), Original = curr.dist, Unconstrained = unc.dist, Constrained = con.dist,
@@ -169,13 +172,13 @@ constr.harm <- mean(obsD < pred.dist.con)
 # using ICC
 
 get.icc <- function(covariate){
-  i1 = ICCbare(as.factor(A), df[,covariate], df)
+  i1 = ICCbare(as.factor(A), df[,covariate], D)
   i2 = ICCbare(as.factor(fU), df[,covariate], dfU)
   i3 = ICCbare(as.factor(fC), df[,covariate], dfC)
   return(c(i1,i2,i3))
 }
 
-# drop visits because those can change based on location
+# in paper, drop visits because those can change based on location
 iccs <- round(100*matrix(unlist(lapply(c(3:dim(df)[2]), function(C) get.icc(C))), ncol = 3, byrow = T),2)
 iccs <- data.frame(covariate = names(df)[3:dim(df)[2]], iccs)
 names(iccs) <- c("Covariate", "Observed", "Unconstrained", "Constrained")

@@ -38,14 +38,15 @@ constr.opt.causal <- function(df,aLevel,obsD){
     aMat.test <- aLevel[s!=rnd,]
 
     ### train E(Y|A,X)
-    mu <- ranger::ranger(y~., data = train.df, write.forest = TRUE)
+    #mu <- ranger::ranger(y~., data = train.df, write.forest = TRUE)
+    mu <- SuperLearner(Y = train.df$y, X = Xtrain, family = binomial(), SL.library = sl.lib)
 
     ### predict E(Y|A = a, X) for each a
     preds <- matrix(unlist(lapply(Avals, function(a) mat.pred(df = test.df, A = a, mu = mu, aLevel = aMat.test))),
                     ncol = length(Avals), byrow = F)
 
     ### get P(A=a|X) for each a
-    phat.pre = matrix(unlist(lapply(Avals, function(a) lg.pred(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest,
+    phat.pre = matrix(unlist(lapply(Avals, function(a) sl.pred(a.val=a,train.df=train.df,Xtrain=Xtrain,Xtest=Xtest,
                                                                aMat.train=aMat.train, aMat.test=aMat.test)))
                       ,ncol = length(Avals), byrow = F)
 
@@ -92,7 +93,9 @@ mat.pred <- function(df, A, mu, aLevel){
   t <- df
   t$obsD <- aLevel[,A]
   t$A <- A
-  predict(mu, t)$pre
+  preds = c(predict.SuperLearner(mu, newdata = t, onlySL = TRUE)[[1]])
+  return(preds)
+  #predict(mu, t)$pre
 }
 sl.pred <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"), aMat.train, aMat.test){
   # need to add obsD
