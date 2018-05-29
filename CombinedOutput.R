@@ -71,9 +71,25 @@ names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = 
 obsD <- dat$total_time[to.keep]
 dist.mat <- dist.mat[to.keep,]
 
+##### output all nuisance parameters and unconstrained estimate ####
 out.combo2 <- constr.opt.causal(df, aLevel = dist.mat, obsD = obsD)
 write.csv(out.combo2$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsUnconstrNewdat.csv")
 write.csv(out.combo2$assig.vec, "~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdat.csv")
 write.csv(out.combo2$phihat, "~jacquelinemauro/Dropbox/sorter/SLphihatUnconstrNewdat.csv")
 write.csv(out.combo2$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdat.csv")
-write.csv(out.combo2$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdat.csv")
+
+#### calculate constrained value ####
+assig.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F)
+assig.mu <- apply(assig.mat,1,which.max)
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdat.csv")[,-1])
+pihat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdat.csv")[,-1])
+
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+
+pihat <- diag(pihat.mat %*% t(assig.mat))
+
+ifvals <- (as.numeric(df$A == assig.mu)/pihat)*(df$y - muhat) + muhat
+est <- mean(ifvals)
+sd <- sd(ifvals)/sqrt(length(ifvals))
+

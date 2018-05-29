@@ -146,14 +146,15 @@ sd <- sd(ifvals)/sqrt(length(ifvals))
 #### using combined code and muhat ----
 # not great cause pihat's aren't truncated, just use plug in
 out.combo <- constr.opt.causal(df, dist.mat, obsD)
-write.csv(out.combo$muhat, '~jacquelinemauro/Dropbox/sorter/muhat_np.csv')
-write.csv(out.combo$phihat, '~jacquelinemauro/Dropbox/sorter/phihat_np.csv')
+#write.csv(out.combo$muhat, '~jacquelinemauro/Dropbox/sorter/muhat_np.csv')
+#write.csv(out.combo$phihat, '~jacquelinemauro/Dropbox/sorter/phihat_np.csv')
 #write.csv(out.combo$muhat, '~jacquelinemauro/Dropbox/sorter/muhat_logistic.csv')
 
 assignedP.mufudge <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_mu.csv', header = F)
 assig.mu <- apply(assignedP.mufudge,1,which.max)
+muhat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/muhat_np.csv")[,-1])
 
-muhat <- diag(out.combo$muhat %*% t(assignedP.mufudge))
+muhat <- diag(muhat %*% t(assignedP.mufudge))
 plug.in.est <- mean(muhat)
 
 pihat <- diag(out.combo$pihat %*% t(assignedP.mufudge))
