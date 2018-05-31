@@ -86,8 +86,13 @@ fO <- df$A
 D <- df; D$dist <- obsD
 dfU <- dfC <- D
 dfU$A <- as.factor(fU); dfC$A <- as.factor(fC); D$A <- as.factor(df$A)
-dfU$dist <- diag(dist.mat %*% t(sapply(unique(df$A), function(x) as.numeric(fU == x))))
-dfC$dist <- diag(dist.mat %*% t(sapply(unique(df$A), function(x) as.numeric(fC == x))))
+
+# get new distances
+tempU = sapply(c(1:25), function(y) 1*(fU == y)); unc.distance = diag(dist.mat %*% t(tempU))
+tempC = sapply(c(1:25), function(y) 1*(fC == y)); con.distance = diag(dist.mat %*% t(tempC))
+
+dfU$dist <- unc.distance
+dfC$dist <- con.distance
 
 nms <- c('Recidivism','Prison','Length of Stay', 'White',
                                'Urban',"Prior Arrests" , "Married","Violent","lsir Score","Age",
@@ -141,35 +146,66 @@ unmoved.compare <- rbind(unmoved.compare[1,],c(pris.modeO,pris.modeU,pris.modeC)
 rownames(unmoved.compare) <- nms
 print(xtable(unmoved.compare, caption = 'Comparing those not moved'), file = "~jacquelinemauro/Dropbox/sorter/unmovedStats.tex")
 
+########## compare distance before and after sort #########
+summary(obsD)
+summary(dfU$dist)
+summary(dfC$dist)
+
+par(mfrow = c(1,3))
+hist(obs.distance, xlab = "Observed Distance", main = "Observed", xlim = c(0,500))
+hist(dfU$dist, xlab = "Unconstrained Distance", main = "Unconstrained", xlim = c(0,500))
+hist(dfC$dist, xlab = "Constrained Distance", main = "Constrained", xlim = c(0,500))
+par(mfrow = c(1,1))
+
+# how many are harmed -- over 50% in constrained, only 25% in unconstrained
+mean(obs.distance < unc.distance)
+mean(obs.distance < con.distance)
+
 ########## compare current recid_a vs. predicted after sort #########
+# ranger
 recid.model <- ranger::ranger(y ~ ., data = D, write.forest = T)
 pred.recid.unc <- predict(recid.model, data = dfU, type = 'response')$pre
 pred.recid.con <- predict(recid.model, data = dfC, type = 'response')$pre
 
+# superlearner
 recid.model <- SuperLearner(Y = D$y, X = D[,-1], family = binomial(), SL.library = c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"))
 pred.recid.unc = c(predict.SuperLearner(recid.model, newdata = dfU, onlySL = TRUE)[[1]])
 pred.recid.con = c(predict.SuperLearner(recid.model, newdata = dfC, onlySL = TRUE)[[1]])
+
+# from the original output
+tempU2 = sapply(unique(dat$A), function(y) 1*(fU == y));tempC2 = sapply(unique(dat$A), function(y) 1*(fC == y));
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdat.csv")[,-1])
+pred.recid.con <- diag(muhat.mat %*% t(tempC2))
+pred.recid.unc <- diag(muhat.mat %*% t(tempU2))
 
 # overall dists
 summary(D$y)
 summary(pred.recid.unc)
 summary(pred.recid.con)
 
+curr.recid <- data.frame(A = unique(D$A), Original = round(100*sapply(unique(D$A), function(a) mean(D$y[D$A == a])),2),
+                         OriginalSD = round(100*sapply(unique(D$A), function(a) sd(D$y[D$A == a])),2))
+unc.recid <- data.frame(A = unique(fU), Unconstrained = round(100*sapply(unique(fU), function(a) mean(pred.recid.unc[fU == a])),2),
+                         UnconstrainedSD = round(100*sapply(unique(fU), function(a) sd(pred.recid.unc[fU == a])),2))
+con.recid <- data.frame(A = unique(fC), Constrained = round(100*sapply(unique(fC), function(a) mean(pred.recid.con[fC == a])),2),
+                        ConstrainedSD = round(100*sapply(unique(fC), function(a) sd(pred.recid.con[fC == a])),2))
+compare.recid <- merge(merge(curr.recid,unc.recid), con.recid)
 
-# by prison
-curr.recid <- round(ddply(D, .(A), summarize, Recid = mean(y))$Recid,2)
-unc.recid <- round(ddply(data.frame(D, pred.recid.unc), .(A), summarize, Recid = mean(pred.recid.unc))$Recid,2)
-con.recid <- round(ddply(data.frame(D, pred.recid.con), .(A), summarize, Recid = mean(pred.recid.con))$Recid,2)
-compare.recid <- data.frame(Prison = names(pris.dummies), Original = curr.recid, Unconstrained = unc.recid, Constrained = con.recid,
-                            UnconstrainedChange = unc.change, ConstrainedChange = con.change)
 #print(xtable(unmoved.compare, caption = 'Comparing Prediced Recidivism'), file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_ranger.tex")
-print(xtable(unmoved.compare, caption = 'Comparing Prediced Recidivism'), file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_sl.tex")
+print(xtable(compare.recid, caption = 'Comparing Prediced Recidivism'), include.rownames = F, file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_sl.tex")
 
 ########## compare current visit_a vs. predicted after sort #########
 # check that x11 is "Visits at Last Location"
+#ranger
 visit.model <- ranger::ranger(x11 ~ ., data = D, write.forest = T)
 pred.visit.unc <- predict(visit.model, data = dfU, type = 'response')$pre
 pred.visit.con <- predict(visit.model, data = dfC, type = 'response')$pre
+
+# superlearner -- think this is worse (has lots of errors and big negatives)
+visit.model <- SuperLearner(Y = D$x11, X = D[,-which(names(D)=="x11")], SL.library = c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"))
+pred.visit.unc = c(predict.SuperLearner(visit.model, newdata = dfU, onlySL = TRUE)[[1]])
+pred.visit.con = c(predict.SuperLearner(visit.model, newdata = dfC, onlySL = TRUE)[[1]])
+
 
 # overall dists
 summary(D$x11)
@@ -183,40 +219,15 @@ hist(log(round(pred.visit.con)), xlim = c(0,7), main = "Constrained", xlab = "Lo
 par(mfrow = c(1,1))
 
 # by prison
-curr.visit <- round(ddply(D, .(A), summarize, Visits = mean(x11))$Visits,2)
-unc.visit <- round(ddply(data.frame(D, pred.visit.unc), .(A), summarize, Visits = mean(pred.visit.unc))$Visits,2)
-con.visit <- round(ddply(data.frame(D, pred.visit.con), .(A), summarize, Visits = mean(pred.visit.con))$Visits,2)
-compare.visits <- data.frame(Prison = names(pris.dummies), Original = curr.visit, Unconstrained = unc.visit, Constrained = con.visit,
-                             UnconstrainedChange = unc.change, ConstrainedChange = con.change)
+curr.visit <- data.frame(A = unique(D$A), Original = round(100*sapply(unique(D$A), function(a) mean(D$x11[D$A == a])),2),
+                         OriginalSD = round(100*sapply(unique(D$A), function(a) sd(D$x11[D$A == a])),2))
+unc.visit <- data.frame(A = unique(fU), Unconstrained = round(100*sapply(unique(fU), function(a) mean(pred.visit.unc[fU == a])),2),
+                        UnconstrainedSD = round(100*sapply(unique(fU), function(a) sd(pred.visit.unc[fU == a])),2))
+con.visit <- data.frame(A = unique(fC), Constrained = round(100*sapply(unique(fC), function(a) mean(pred.visit.con[fC == a])),2),
+                        ConstrainedSD = round(100*sapply(unique(fC), function(a) sd(pred.visit.con[fC == a])),2))
+compare.visit <- merge(merge(curr.visit,unc.visit), con.visit)
 print(xtable(compare.visits, caption = 'Comparing Prediced Visits'), file = "~jacquelinemauro/Dropbox/sorter/compPredVisits_ranger.tex")
 
-########## compare current distance_a vs. predicted after sort #########
-dist.model <- ranger::ranger(dist ~ ., data = D, write.forest = T)
-pred.dist.unc <- predict(dist.model, data = dfU, type = 'response')$pre
-pred.dist.con <- predict(dist.model, data = dfC, type = 'response')$pre
-
-# overall dists
-summary(obsD)
-summary(pred.dist.unc)
-summary(pred.dist.con)
-
-par(mfrow = c(1,3))
-hist(obsD, xlim = c(0,500), main = "Observed", xlab = "Distances Observed")
-hist(pred.dist.unc, xlim = c(0,500), main = "Unconstrained", xlab = "Unconstrained Distances")
-hist(pred.dist.con, xlim = c(0,500), main = "Constrained", xlab = "Constrained Distances")
-par(mfrow = c(1,1))
-
-# by prison
-curr.dist <- round(ddply(D, .(A), summarize, dists = mean(dist))$dists,2)
-unc.dist <- round(ddply(data.frame(df, pred.dist.unc), .(A), summarize, dists = mean(pred.dist.unc))$dists,2)
-con.dist <- round(ddply(data.frame(df, pred.dist.con), .(A), summarize, dists = mean(pred.dist.con))$dists,2)
-compare.dists <- data.frame(Prison = names(pris.dummies), Original = curr.dist, Unconstrained = unc.dist, Constrained = con.dist,
-                             UnconstrainedChange = unc.change, ConstrainedChange = con.change)
-print(xtable(compare.dists, caption = 'Comparing Prediced Visits'), file = "~jacquelinemauro/Dropbox/sorter/compPredVisits_ranger.tex")
-
-# about half of prisoners are moved farther from home
-unc.harm <- mean(obsD < pred.dist.unc)
-constr.harm <- mean(obsD < pred.dist.con)
 ########## compare demographic concentration #############
 # using ICC
 
@@ -227,8 +238,15 @@ get.icc <- function(covariate){
   return(c(i1,i2,i3))
 }
 
+#icc's for predicted covariates at new location:
+#   visits, recidivism, misconducts
+icc.predicted.visit <- round(100*c(ICCbare(as.factor(A),D[,which(nms=="Visits Ever")],D),ICCbare(as.factor(fU),pred.visit.unc),ICCbare(as.factor(fC),pred.visit.con)),2)
+icc.predicted.recid <- round(100*c(ICCbare(as.factor(A),D[,which(nms=="Recidivism")],D),ICCbare(as.factor(fU),pred.recid.unc),ICCbare(as.factor(fC),pred.recid.con)),2)
+
 # in paper, drop visits because those can change based on location
-iccs <- as.data.frame(round(100*matrix(unlist(lapply(c(3:dim(D)[2]), function(C) get.icc(C))), ncol = 3, byrow = T),2))
+baseline.covs <- c(3:12, 14,15, 21, 22)
+iccs <- as.data.frame(round(100*matrix(unlist(lapply(baseline.covs, function(C) get.icc(C))), ncol = 3, byrow = T),2))
+iccs <- rbind(icc.predicted.recid, icc.predicted.visit, iccs)
 names(iccs) <- c("Observed", "Unconstrained", "Constrained")
-rownames(iccs) <- nms[-c(1,2)]
+rownames(iccs) <- c("Recidivism","Visits Ever", nms[baseline.covs])
 print(xtable(iccs,caption = "Intraclass Correlation Coefficients",label = "tab:ICC"),file = "~jacquelinemauro/Dropbox/sorter/ICC.tex")
