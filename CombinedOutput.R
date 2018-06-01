@@ -1,3 +1,5 @@
+#### June 1: using better dataset ####
+# leaving out visits at last location
 dat <- read.csv('~jacquelinemauro/MergedData.csv')[,-1]
 dat$no.visits.last.loc <- (1 - dat$visitslastlocyn1)
 dat$no.childvisits <- (1 - dat$childyn)
@@ -13,7 +15,35 @@ names(dist.mat)<-names(pris.dummies)
 dat$A <- apply(pris.dummies,1,which.max)
 dat$nmA <- apply(pris.dummies,1,function(x) names(pris.dummies)[which.max(x)])
 
-#### old, not great dataset. all results before 5/29/2018 10am are on this
+nm = names(dat)
+covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='white')],dat[,which(nm=='urban'):which(nm=='ageyrs')],
+             dat[,which(nm=='custody_level'):which(nm=='numofpriorinc')],
+             dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],
+             dat[,which(nm=='child')], dat[,which(nm=='parent')], dat[,which(nm=='spouse')],
+             dat[,which(nm=='friendsnonfamily')],
+             dat[,which(nm=='numofpriormisconducts')]
+)
+
+df <- as.data.frame(cbind(dat$NCRecid3, dat$A, covs))
+to.keep <- complete.cases(df)
+df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved values
+names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = "")))
+obsD <- dat$total_time[to.keep]
+dist.mat <- as.matrix(dist.mat[to.keep,])
+
+nms <- c('Recidivism','Prison','Length of Stay', 'White',
+         'Urban',"Prior Arrests" , "Married","Violent","lsir Score","Age",
+         "Custody Level","Prior Incarcerations","Visits at Last Location",
+         "Mental Health", "High School","Child Visits",
+         "Parent Visits","Spouse Visits","Friends Visits","Misconducts","Distance")
+
+sum.stats.means <- round(apply(D[,-2],2,mean),2)
+sum.stats.sds <- round(apply(D[,-2],2,sd),2)
+sum.stats.tab <- data.frame(Mean = sum.stats.means, SD = sum.stats.sds)
+rownames(sum.stats.tab) <- nms[-2]
+print(xtable(sum.stats.tab, caption = 'Summary Statistics'), file = "~jacquelinemauro/Dropbox/sorter/summarystats.tex")
+
+#### old, not great dataset. all results before 5/29/2018 10am are on this####
 nm = names(dat)
 covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='ageyrs')],#dat[,which(nm=='total_time')],
              dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],

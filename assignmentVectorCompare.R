@@ -65,7 +65,6 @@ nm = names(dat)
 covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='white')],dat[,which(nm=='urban'):which(nm=='ageyrs')],
              dat[,which(nm=='custody_level'):which(nm=='numofpriorinc')],
              dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],
-             dat[,which(nm=='numofvisitsever')],
              dat[,which(nm=='child')], dat[,which(nm=='parent')], dat[,which(nm=='spouse')],
              dat[,which(nm=='friendsnonfamily')],
              dat[,which(nm=='numofpriormisconducts')]
@@ -97,7 +96,7 @@ dfC$dist <- con.distance
 nms <- c('Recidivism','Prison','Length of Stay', 'White',
                                'Urban',"Prior Arrests" , "Married","Violent","lsir Score","Age",
                                "Custody Level","Prior Incarcerations","Visits at Last Location",
-                               "Mental Health", "High School","Visits Ever","Child Visits",
+                               "Mental Health", "High School","Child Visits",
                                "Parent Visits","Spouse Visits","Friends Visits","Misconducts","Distance")
 
 
