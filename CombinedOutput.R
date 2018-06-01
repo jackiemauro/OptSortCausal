@@ -78,12 +78,13 @@ write.csv(out.combo.rg$muhat, "~jacquelinemauro/Dropbox/sorter/RGmuhatUnconstrNe
 
 
 ##### output all nuisance parameters and unconstrained estimate ####
-# not run
+# June 1, reran this with new code and superlearner and replaced old files
 out.combo2 <- constr.opt.causal(df, aLevel = dist.mat, obsD = obsD)
 write.csv(out.combo2$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsUnconstrNewdat.csv")
 write.csv(out.combo2$assig.vec, "~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdat.csv")
 write.csv(out.combo2$phihat, "~jacquelinemauro/Dropbox/sorter/SLphihatUnconstrNewdat.csv")
 write.csv(out.combo2$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdat.csv")
+write.csv(cbind(out.combo2$psi, out.combo2$sd), "~jacquelinemauro/Dropbox/sorter/SLestsdUnconstrNewdat.csv")
 
 #### calculate constrained value ####
 assig.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F)
@@ -93,10 +94,12 @@ pihat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLpihatUnconstr
 
 muhat <- diag(muhat.mat %*% t(assig.mat))
 plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrPINewdat.csv")
 
 pihat <- diag(pihat.mat %*% t(assig.mat))
 
 ifvals <- (as.numeric(df$A == assig.mu)/pihat)*(df$y - muhat) + muhat
 est <- mean(ifvals)
 sd <- sd(ifvals)/sqrt(length(ifvals))
+write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")
 
