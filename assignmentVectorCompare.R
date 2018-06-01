@@ -212,10 +212,26 @@ summary(D$x11)
 summary(pred.visit.unc)
 summary(pred.visit.con)
 
+# chance of <1 visit
+mean(D$x11==0)
+mean(pred.visit.unc<1)
+mean(pred.visit.con<1)
+
+# dists of those visited
+summary(D$x11[D$x11>0])
+summary(pred.visit.unc[pred.visit.unc>=1])
+summary(pred.visit.con[pred.visit.con>=1])
+
 par(mfrow = c(1,3))
-hist(log(D$x11), xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
-hist(log(round(pred.visit.unc)), xlim = c(0,7), main = "Unconstrained", xlab = "Log of Visits Predicted")
-hist(log(round(pred.visit.con)), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
+hist(log(D$x11[D$x11>0]), xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
+hist(log(round(pred.visit.unc[pred.visit.unc>=1])), xlim = c(0,7), main = "Unconstrained", xlab = "Log of Visits Predicted")
+hist(log(round(pred.visit.con[pred.visit.con>=1])), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
+par(mfrow = c(1,1))
+
+par(mfrow = c(1,3))
+hist(D$x11, xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
+hist(round(pred.visit.unc), xlim = c(0,7), main = "Unconstrained", xlab = "Log of Visits Predicted")
+hist(round(pred.visit.con), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
 par(mfrow = c(1,1))
 
 # by prison
