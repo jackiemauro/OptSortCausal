@@ -68,6 +68,12 @@ sum.stats.tab <- data.frame(Mean = sum.stats.means, SD = sum.stats.sds)
 rownames(sum.stats.tab) <- nms[-2]
 print(xtable(sum.stats.tab, caption = 'Summary Statistics'), file = "~jacquelinemauro/Dropbox/sorter/summarystats.tex")
 
+# allow 5% wiggle room
+constr <- round(apply(pris.dummies[to.keep,],2,sum) * 1.05)
+constr <- constr[unique(D$A)]
+write.csv(constr, '~jacquelinemauro/Dropbox/sorter/capacityFudge.csv')
+
+
 ##### output all nuisance parameters and unconstrained estimate using ranger ####
 # bad bad bad
 out.combo.rg <- constr.opt.causal(df, aLevel = dist.mat, obsD = obsD,mu.algo = 'ranger', pi.algo = 'ranger2')
