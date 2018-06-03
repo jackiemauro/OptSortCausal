@@ -24,7 +24,8 @@ constr.opt.causal <- function(df,aLevel,obsD,
   library('plyr')
   n = dim(df)[1]
   df$A <- as.numeric(df$A)
-  Avals <- unique(df$A); n.avals <- length(Avals)
+  Avals <- sort(unique(df$A)); n.avals <- length(Avals)
+  Amap <- cbind(Avals, colnames(aLevel))
 
   s <- as.numeric(runif(n) < .5)+1
   psihat <- sdhat <- rep(NA,2)

@@ -81,7 +81,7 @@ fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdat.csv")[,
 fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F),1,which.max)
 fO <- df$A
 
-# set up datasets for each of the assignments -- not run
+# set up datasets for each of the assignments
 D <- df; D$dist <- obsD
 dfU <- dfC <- D
 dfU$A <- as.factor(fU); dfC$A <- as.factor(fC); D$A <- as.factor(df$A)
@@ -99,7 +99,6 @@ nms <- c('Recidivism','Prison','Length of Stay', 'White',
                                "Mental Health", "High School","Child Visits",
                                "Parent Visits","Spouse Visits","Friends Visits","Misconducts","Distance")
 
-
 ########## basic distributional changes ##########
 # how often do the vectors agree? almost never
 mean(fU==fC)
@@ -115,6 +114,13 @@ con.dist <- count(fC)$freq
 
 unc.change <- unc.dist - orig.dist
 con.change <- con.dist - orig.dist
+
+########## do the count distributions change much? #########
+plot(orig.dist,unc.dist, xlim = c(50,500),
+     xlab = "Observed Counts", ylab = "Unconstrained Counts",
+     main = "Change in Prisoner Assignments before and after Assignment",
+     pch= 19)
+abline(0,1)
 
 ########## study the people who aren't moved #########
 unmovedC <- which(fC == fO)
@@ -171,7 +177,7 @@ recid.model <- SuperLearner(Y = D$y, X = D[,-1], family = binomial(), SL.library
 pred.recid.unc = c(predict.SuperLearner(recid.model, newdata = dfU, onlySL = TRUE)[[1]])
 pred.recid.con = c(predict.SuperLearner(recid.model, newdata = dfC, onlySL = TRUE)[[1]])
 
-# from the original output
+# from the original output -- use this one
 tempU2 = sapply(unique(dat$A), function(y) 1*(fU == y));tempC2 = sapply(unique(dat$A), function(y) 1*(fC == y));
 muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdat.csv")[,-1])
 pred.recid.con <- diag(muhat.mat %*% t(tempC2))
@@ -192,6 +198,16 @@ compare.recid <- merge(merge(curr.recid,unc.recid), con.recid)
 
 #print(xtable(unmoved.compare, caption = 'Comparing Prediced Recidivism'), file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_ranger.tex")
 print(xtable(compare.recid, caption = 'Comparing Prediced Recidivism'), include.rownames = F, file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_sl.tex")
+
+plot(unc.change, unc.recid$Unconstrained,
+     xlab = "Change in number of Inmates",
+     ylab = "Predicted Recidivism at New Prison",
+     main = "Recidivism vs Change in Assignment (unconstrained)")
+
+plot(con.change, con.recid$Constrained,
+     xlab = "Change in number of Inmates",
+     ylab = "Predicted Recidivism at New Prison",
+     main = "Recidivism vs Change in Assignment (constrained)")
 
 ########## compare current visit_a vs. predicted after sort #########
 # check that x11 is "Visits at Last Location"
@@ -227,11 +243,6 @@ hist(log(round(pred.visit.unc[pred.visit.unc>=1])), xlim = c(0,7), main = "Uncon
 hist(log(round(pred.visit.con[pred.visit.con>=1])), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
 par(mfrow = c(1,1))
 
-par(mfrow = c(1,3))
-hist(D$x11, xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
-hist(round(pred.visit.unc), xlim = c(0,7), main = "Unconstrained", xlab = "Log of Visits Predicted")
-hist(round(pred.visit.con), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
-par(mfrow = c(1,1))
 
 # by prison
 curr.visit <- data.frame(A = unique(D$A), Original = round(100*sapply(unique(D$A), function(a) mean(D$x11[D$A == a])),2),
@@ -259,9 +270,18 @@ icc.predicted.visit <- round(100*c(ICCbare(as.factor(A),D[,which(nms=="Visits Ev
 icc.predicted.recid <- round(100*c(ICCbare(as.factor(A),D[,which(nms=="Recidivism")],D),ICCbare(as.factor(fU),pred.recid.unc),ICCbare(as.factor(fC),pred.recid.con)),2)
 
 # in paper, drop visits because those can change based on location
-baseline.covs <- c(3:12, 14,15, 21, 22)
+baseline.covs <- which(nms %in% c("Length of Stay", "White","Urban",
+                                  "Prior Arrests","Married","Violent",
+                                  "lsir Score","Age","Custody Level",
+                                  "Prior Incarcerations","Mental Health",
+                                  "High School","Misconducts","Distance"))
 iccs <- as.data.frame(round(100*matrix(unlist(lapply(baseline.covs, function(C) get.icc(C))), ncol = 3, byrow = T),2))
-iccs <- rbind(icc.predicted.recid, icc.predicted.visit, iccs)
+#iccs <- rbind(icc.predicted.recid, icc.predicted.visit, iccs)
 names(iccs) <- c("Observed", "Unconstrained", "Constrained")
-rownames(iccs) <- c("Recidivism","Visits Ever", nms[baseline.covs])
+#rownames(iccs) <- c("Recidivism","Visits Ever", nms[baseline.covs])
+rownames(iccs) <- c("Length of Stay", "White","Urban",
+                    "Prior Arrests","Married","Violent",
+                    "lsir Score","Age","Custody Level",
+                    "Prior Incarcerations","Mental Health",
+                    "High School","Misconducts","Distance")
 print(xtable(iccs,caption = "Intraclass Correlation Coefficients",label = "tab:ICC"),file = "~jacquelinemauro/Dropbox/sorter/ICC.tex")
