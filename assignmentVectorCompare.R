@@ -76,19 +76,30 @@ df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved
 names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = "")))
 obsD <- dat$total_time[to.keep]
 dist.mat <- as.matrix(dist.mat[to.keep,])
+dist.df <- data.frame(dist.mat)
 
-fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdat.csv")[,-1]
-fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F),1,which.max)
+# fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdat.csv")[,-1]
+# fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F),1,which.max)
+# fO <- df$A
+
+# from named vector version
+fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNm.csv")[,-1]
+fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F),1,which.max)
 fO <- df$A
 
 # set up datasets for each of the assignments
 D <- df; D$dist <- obsD
 dfU <- dfC <- D
-dfU$A <- as.factor(fU); dfC$A <- as.factor(fC); D$A <- as.factor(df$A)
+dfC$A <- names(dist.df)[fC];dfU$A <- names(dist.df)[fU]
 
-# get new distances
-tempU = sapply(c(1:25), function(y) 1*(fU == y)); unc.distance = diag(dist.mat %*% t(tempU))
-tempC = sapply(c(1:25), function(y) 1*(fC == y)); con.distance = diag(dist.mat %*% t(tempC))
+# get new distances--not right
+tempU = read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F)
+unc.distance = diag(dist.mat %*% t(tempU))
+muhat.mat = read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")[,-1]
+tempC = matrix(rep(0,(dim(muhat)[1]*dim(muhat)[2])), ncol = dim(muhat)[2])
+min.mu <- apply(tempC.mat,1,which.min)
+for(i in 1:dim(tempC.mat)[1]){tempC[i,min.mu[i]] <- 1}
+con.distance = diag(dist.mat %*% t(tempC))
 
 dfU$dist <- unc.distance
 dfC$dist <- con.distance
@@ -108,27 +119,29 @@ mean((fO==fU)[fU==fC])
 mean((fO==fU)&(fU==fC))
 
 # how do the counts at each prison change?
-orig.dist <- count(D$A)$freq[unique(D$A)]
-unc.dist <- count(fU)$freq
-con.dist <- count(fC)$freq
+orig.dist <- table(D$A)
+unc.dist <- table(dfU$A)
+con.dist <- table(dfC$A)
 
 unc.change <- unc.dist - orig.dist
 con.change <- con.dist - orig.dist
 
 ########## do the count distributions change much? #########
+png('~jacquelinemauro/Dropbox/sorter/Figures/CountChangeBoth.png')
 par(mfrow = c(1,2))
-plot(orig.dist,unc.dist, xlim = c(50,500),
+plot(c(orig.dist),c(unc.dist), xlim = c(50,500),
      xlab = "Observed Counts", ylab = "Unconstrained Counts",
      main = "Unconstrained",
      pch= 19)
 abline(0,1)
 
-plot(orig.dist,con.dist, xlim = c(50,500),
+plot(c(orig.dist),c(con.dist), xlim = c(50,500),
      xlab = "Observed Counts", ylab = "Constrained Counts",
      main = "Constrained",
      pch= 19)
 abline(0,1)
 par(mfrow = c(1,1))
+dev.off()
 
 ########## study the people who aren't moved #########
 unmovedC <- which(fC == fO)
@@ -161,15 +174,17 @@ print(xtable(unmoved.compare, caption = 'Comparing those not moved'), file = "~j
 
 ########## compare distance before and after sort #########
 
+png('~jacquelinemauro/Dropbox/sorter/Figures/DistanceHistogram.png')
 par(mfrow = c(1,3))
 hist(obsD, xlab = "Observed Distance", main = "Observed", xlim = c(0,500))
 hist(dfU$dist, xlab = "Unconstrained Distance", main = "Unconstrained", xlim = c(0,500))
 hist(dfC$dist, xlab = "Constrained Distance", main = "Constrained", xlim = c(0,500))
 par(mfrow = c(1,1))
+dev.off()
 
-# how many are harmed -- over 50% in constrained, only 25% in unconstrained
-mean(obs.distance < unc.distance)
-mean(obs.distance < con.distance)
+# how many are harmed -- a littl less than half
+mean(obsD < dfU$dist)
+mean(obsD < dfC$dist)
 
 ########## compare current recid_a vs. predicted after sort #########
 # ranger
@@ -183,10 +198,9 @@ pred.recid.unc = c(predict.SuperLearner(recid.model, newdata = dfU, onlySL = TRU
 pred.recid.con = c(predict.SuperLearner(recid.model, newdata = dfC, onlySL = TRUE)[[1]])
 
 # from the original output -- use this one
-tempU2 = sapply(unique(dat$A), function(y) 1*(fU == y));tempC2 = sapply(unique(dat$A), function(y) 1*(fC == y));
-muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdat.csv")[,-1])
-pred.recid.con <- diag(muhat.mat %*% t(tempC2))
-pred.recid.unc <- diag(muhat.mat %*% t(tempU2))
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")[,-1])
+pred.recid.unc <- apply(muhat.mat,1,min)
+pred.recid.con <- diag(as.matrix(muhat.mat) %*% t(tempU)) #check this is right order
 
 # overall dists
 summary(D$y)
