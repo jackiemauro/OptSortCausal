@@ -31,6 +31,7 @@ dat$no.childvisits <- (1 - dat$childyn)
 dat$maxtime <- apply(dat[,2:26],1,max)
 dat <- dat[-which(dat$NCRecid.Event == 'reincarceration'),] #drop if they go back for parole violation
 
+nm = names(dat)
 options(na.action='na.pass')
 county.f = factor(dat$CountyClass); county.dummies = model.matrix(~county.f)[,-c(1,2)]
 minName.f = factor(dat$minTimeName); minName.dummies = model.matrix(~minName.f)[,-c(1,2)]
@@ -40,7 +41,6 @@ names(dist.mat)<-names(pris.dummies)
 dat$A <- apply(pris.dummies,1,which.max)
 dat$nmA <- apply(pris.dummies,1,function(x) names(pris.dummies)[which.max(x)])
 
-nm = names(dat)
 covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='white')],dat[,which(nm=='urban'):which(nm=='ageyrs')],
              dat[,which(nm=='custody_level'):which(nm=='numofpriorinc')],
              dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],
@@ -49,7 +49,7 @@ covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='white')],dat[,which(nm=='ur
              dat[,which(nm=='numofpriormisconducts')]
 )
 
-df <- as.data.frame(cbind(dat$NCRecid3, dat$A, covs))
+df <- as.data.frame(cbind(dat$NCRecid3, dat$nmA, covs))
 to.keep <- complete.cases(df)
 df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved values
 names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = "")))
@@ -62,16 +62,19 @@ nms <- c('Recidivism','Prison','Length of Stay', 'White',
          "Mental Health", "High School","Child Visits",
          "Parent Visits","Spouse Visits","Friends Visits","Misconducts","Distance")
 
-sum.stats.means <- round(apply(D[,-2],2,mean),2)
-sum.stats.sds <- round(apply(D[,-2],2,sd),2)
+sum.stats.means <- round(apply(df[,-2],2,mean),2)
+sum.stats.sds <- round(apply(df[,-2],2,sd),2)
 sum.stats.tab <- data.frame(Mean = sum.stats.means, SD = sum.stats.sds)
-rownames(sum.stats.tab) <- nms[-2]
+rownames(sum.stats.tab) <- nms[-c(2,21)]
 print(xtable(sum.stats.tab, caption = 'Summary Statistics'), file = "~jacquelinemauro/Dropbox/sorter/summarystats.tex")
 
 # allow 5% wiggle room
-constr <- round(apply(pris.dummies[to.keep,],2,sum) * 1.05)
-constr <- constr[unique(D$A)]
-write.csv(constr, '~jacquelinemauro/Dropbox/sorter/capacityFudge.csv')
+D <- df; D$dist <- obsD
+
+# this will be in the order of the prison names
+# ie the first entry of the vector is 'alb', the last is 'pit'
+constr.nm <- round(apply(pris.dummies[to.keep,],2,sum) * 1.05)
+write.csv(constr.nm, '~jacquelinemauro/Dropbox/sorter/capacityFudgeNm.csv')
 
 
 ##### output all nuisance parameters and unconstrained estimate using ranger ####
@@ -92,6 +95,25 @@ write.csv(out.combo2$phihat, "~jacquelinemauro/Dropbox/sorter/SLphihatUnconstrNe
 write.csv(out.combo2$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdat.csv")
 write.csv(cbind(out.combo2$psi, out.combo2$sd), "~jacquelinemauro/Dropbox/sorter/SLestsdUnconstrNewdat.csv")
 
+
+##### output all nuisance parameters and unconstrained estimate using named vec, rg ####
+dist.df <- data.frame(dist.mat)
+out.combo.nm <- constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD,mu.algo = 'ranger', pi.algo = 'ranger')
+write.csv(out.combo.nm$ifvals, "~jacquelinemauro/Dropbox/sorter/RGifvalsUnconstrNewdatNm.csv")
+write.csv(out.combo.nm$assig.vec, "~jacquelinemauro/Dropbox/sorter/RGassigvecUnconstrNewdatNm.csv")
+write.csv(out.combo.nm$phihat, "~jacquelinemauro/Dropbox/sorter/RGphihatUnconstrNewdatNm.csv")
+write.csv(out.combo.nm$muhat, "~jacquelinemauro/Dropbox/sorter/RGmuhatUnconstrNewdatNm.csv")
+
+##### output all nuisance parameters and unconstrained estimate using named vec, sl ####
+dist.df <- data.frame(dist.mat)
+out.combo.nm <- constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD,mu.algo = 'superlearner', pi.algo = 'superlearner')
+write.csv(out.combo.nm$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsUnconstrNewdatNm.csv")
+write.csv(out.combo.nm$assig.vec, "~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNm.csv")
+write.csv(out.combo.nm$phihat, "~jacquelinemauro/Dropbox/sorter/SLphihatUnconstrNewdatNm.csv")
+write.csv(out.combo.nm$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")
+write.csv(out.combo.nm$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNm.csv")
+
+
 #### calculate constrained value ####
 assig.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F)
 assig.mu <- apply(assig.mat,1,which.max)
@@ -108,4 +130,22 @@ ifvals <- (as.numeric(df$A == assig.mu)/pihat)*(df$y - muhat) + muhat
 est <- mean(ifvals)
 sd <- sd(ifvals)/sqrt(length(ifvals))
 write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")
+
+#### calculate constrained value nm ####
+assig.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F)
+assig.mu <- apply(assig.mat,1,which.max)
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")[,-1])
+pihat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNm.csv")[,-1])
+
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrPINewdat.csv")
+
+pihat <- diag(pihat.mat %*% t(assig.mat))
+
+ifvals <- (as.numeric(df$A == names(dist.df)[assig.mu])/pihat)*(df$y - muhat) + muhat
+est <- mean(ifvals)
+sd <- sd(ifvals)/sqrt(length(ifvals))
+write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")
+
 

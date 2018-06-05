@@ -52,6 +52,7 @@ dat$no.childvisits <- (1 - dat$childyn)
 dat$maxtime <- apply(dat[,2:26],1,max)
 dat <- dat[-which(dat$NCRecid.Event == 'reincarceration'),] #drop if they go back for parole violation
 
+nm = names(dat)
 options(na.action='na.pass')
 county.f = factor(dat$CountyClass); county.dummies = model.matrix(~county.f)[,-c(1,2)]
 minName.f = factor(dat$minTimeName); minName.dummies = model.matrix(~minName.f)[,-c(1,2)]
@@ -61,7 +62,6 @@ names(dist.mat)<-names(pris.dummies)
 dat$A <- apply(pris.dummies,1,which.max)
 dat$nmA <- apply(pris.dummies,1,function(x) names(pris.dummies)[which.max(x)])
 
-nm = names(dat)
 covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='white')],dat[,which(nm=='urban'):which(nm=='ageyrs')],
              dat[,which(nm=='custody_level'):which(nm=='numofpriorinc')],
              dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],
@@ -108,7 +108,7 @@ mean((fO==fU)[fU==fC])
 mean((fO==fU)&(fU==fC))
 
 # how do the counts at each prison change?
-orig.dist <- count(D$A)$freq
+orig.dist <- count(D$A)$freq[unique(D$A)]
 unc.dist <- count(fU)$freq
 con.dist <- count(fC)$freq
 
@@ -116,11 +116,19 @@ unc.change <- unc.dist - orig.dist
 con.change <- con.dist - orig.dist
 
 ########## do the count distributions change much? #########
+par(mfrow = c(1,2))
 plot(orig.dist,unc.dist, xlim = c(50,500),
      xlab = "Observed Counts", ylab = "Unconstrained Counts",
-     main = "Change in Prisoner Assignments before and after Assignment",
+     main = "Unconstrained",
      pch= 19)
 abline(0,1)
+
+plot(orig.dist,con.dist, xlim = c(50,500),
+     xlab = "Observed Counts", ylab = "Constrained Counts",
+     main = "Constrained",
+     pch= 19)
+abline(0,1)
+par(mfrow = c(1,1))
 
 ########## study the people who aren't moved #########
 unmovedC <- which(fC == fO)
@@ -152,12 +160,9 @@ rownames(unmoved.compare) <- nms
 print(xtable(unmoved.compare, caption = 'Comparing those not moved'), file = "~jacquelinemauro/Dropbox/sorter/unmovedStats.tex")
 
 ########## compare distance before and after sort #########
-summary(obsD)
-summary(dfU$dist)
-summary(dfC$dist)
 
 par(mfrow = c(1,3))
-hist(obs.distance, xlab = "Observed Distance", main = "Observed", xlim = c(0,500))
+hist(obsD, xlab = "Observed Distance", main = "Observed", xlim = c(0,500))
 hist(dfU$dist, xlab = "Unconstrained Distance", main = "Unconstrained", xlim = c(0,500))
 hist(dfC$dist, xlab = "Constrained Distance", main = "Constrained", xlim = c(0,500))
 par(mfrow = c(1,1))
@@ -199,15 +204,17 @@ compare.recid <- merge(merge(curr.recid,unc.recid), con.recid)
 #print(xtable(unmoved.compare, caption = 'Comparing Prediced Recidivism'), file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_ranger.tex")
 print(xtable(compare.recid, caption = 'Comparing Prediced Recidivism'), include.rownames = F, file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_sl.tex")
 
+par(mfrow = c(1,2))
 plot(unc.change, unc.recid$Unconstrained,
      xlab = "Change in number of Inmates",
      ylab = "Predicted Recidivism at New Prison",
-     main = "Recidivism vs Change in Assignment (unconstrained)")
+     main = "Unconstrained")
 
 plot(con.change, con.recid$Constrained,
      xlab = "Change in number of Inmates",
      ylab = "Predicted Recidivism at New Prison",
-     main = "Recidivism vs Change in Assignment (constrained)")
+     main = "Constrained")
+par(mfrow = c(1,1))
 
 ########## compare current visit_a vs. predicted after sort #########
 # check that x11 is "Visits at Last Location"
