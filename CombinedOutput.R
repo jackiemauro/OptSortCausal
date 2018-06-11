@@ -112,7 +112,7 @@ write.csv(out.combo.nm$assig.vec, "~jacquelinemauro/Dropbox/sorter/SLassigvecUnc
 write.csv(out.combo.nm$phihat, "~jacquelinemauro/Dropbox/sorter/SLphihatUnconstrNewdatNm.csv")
 write.csv(out.combo.nm$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")
 write.csv(out.combo.nm$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNm.csv")
-
+write.csv(c(out.combo.nm$psi,out.combo.nm$sd),"~jacquelinemauro/Dropbox/sorter/SLestsUnconstrNewdatNm.csv")
 
 #### calculate constrained value ####
 assig.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F)

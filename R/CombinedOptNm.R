@@ -15,6 +15,8 @@
 #' influence function values that can be used in the constrained optimization
 #' procedure.
 
+
+# TO DO: do you actually need to predict pi at each a? 
 constr.opt.causal.nm <- function(df,aLevel,obsD,
                               mu.algo = 'superlearner',
                               pi.algo = 'superlearner',
