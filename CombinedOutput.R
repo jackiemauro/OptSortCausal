@@ -148,4 +148,23 @@ est <- mean(ifvals)
 sd <- sd(ifvals)/sqrt(length(ifvals))
 write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")
 
+#### calculate approximate constrained value nm ####
+dist.df <- data.frame(dist.mat)
+out.approx.nm <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD,mu.algo = 'ranger', pi.algo = 'ranger')
+assig.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F)
+assig.mu <- apply(assig.mat,1,which.max)
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")[,-1])
+pihat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNm.csv")[,-1])
+
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrPINewdat.csv")
+
+pihat <- diag(pihat.mat %*% t(assig.mat))
+
+ifvals <- (as.numeric(df$A == names(dist.df)[assig.mu])/pihat)*(df$y - muhat) + muhat
+est <- mean(ifvals)
+sd <- sd(ifvals)/sqrt(length(ifvals))
+write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")
+
 
