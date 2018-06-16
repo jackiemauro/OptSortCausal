@@ -55,6 +55,7 @@ df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved
 names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = "")))
 obsD <- dat$total_time[to.keep]
 dist.mat <- as.matrix(dist.mat[to.keep,])
+pris.dummies <- pris.dummies[to.keep,]
 
 nms <- c('Recidivism','Prison','Length of Stay', 'White',
          'Urban',"Prior Arrests" , "Married","Violent","lsir Score","Age",
@@ -148,23 +149,103 @@ est <- mean(ifvals)
 sd <- sd(ifvals)/sqrt(length(ifvals))
 write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")
 
-#### calculate approximate constrained value nm ####
+#### calculate approximate constrained value nm predicting fhat by covariates (all distance matrix)####
 dist.df <- data.frame(dist.mat)
-out.approx.nm <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD,mu.algo = 'ranger', pi.algo = 'ranger')
-assig.mat <- read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F)
-assig.mu <- apply(assig.mat,1,which.max)
-muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")[,-1])
-pihat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNm.csv")[,-1])
+out.approx.nm <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD, nsplits = 5, mu.algo = 'ranger', pi.algo = 'ranger')
+write.csv(out.approx.nm$ifvals, "~jacquelinemauro/Dropbox/sorter/RGifvalsApconstrNewdatNm.csv")
+write.csv(out.approx.nm$fhat, "~jacquelinemauro/Dropbox/sorter/RGassigvecApconstrNewdatNm.csv")
+write.csv(out.approx.nm$muhat, "~jacquelinemauro/Dropbox/sorter/RGmuhatApconstrNewdatNm.csv")
+write.csv(out.approx.nm$pihat, "~jacquelinemauro/Dropbox/sorter/RGpihatApconstrNewdatNm.csv")
+write.csv(c(out.approx.nm$psi,out.approx.nm$sd),"~jacquelinemauro/Dropbox/sorter/RGestsApconstrNewdatNm.csv")
+
+assig.mu <- read.csv("~jacquelinemauro/Dropbox/sorter/RGassigvecApconstrNewdatNm.csv")[,-1]
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/RGmuhatApconstrNewdatNm.csv")[,-1])
+assig.mat <- model.matrix(~names(pris.dummies)[assig.mu]-1)
 
 muhat <- diag(muhat.mat %*% t(assig.mat))
 plug.in.est <- mean(muhat)
-write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrPINewdat.csv")
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/RGestsdApConstrPINewdat.csv")
 
-pihat <- diag(pihat.mat %*% t(assig.mat))
+# with SL
+out.approx.nm.sl <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD, nsplits = 2, mu.algo = 'superlearner', pi.algo = 'superlearner')
+write.csv(out.approx.nm.sl$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsApconstrNewdatNm.csv")
+write.csv(out.approx.nm.sl$fhat, "~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNm.csv")
+write.csv(out.approx.nm.sl$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNm.csv")
+write.csv(out.approx.nm.sl$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatApconstrNewdatNm.csv")
+write.csv(c(out.approx.nm.sl$psi,out.approx.nm.sl$sd),"~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNm.csv")
 
-ifvals <- (as.numeric(df$A == names(dist.df)[assig.mu])/pihat)*(df$y - muhat) + muhat
-est <- mean(ifvals)
-sd <- sd(ifvals)/sqrt(length(ifvals))
-write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")
+assig.mu <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNm.csv")[,-1]
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNm.csv")[,-1])
+assig.mat <- sapply(Avals, function(x) as.numeric(Avals[assig.mu] == x))
 
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdApConstrPINewdat.csv")
+
+
+#### calculate approximate constrained value nm predicting fhat by muhat####
+dist.df <- data.frame(dist.mat)
+out.approx.nm <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD, nsplits = 2, mu.algo = 'ranger', pi.algo = 'ranger')
+write.csv(out.approx.nm$ifvals, "~jacquelinemauro/Dropbox/sorter/RGifvalsApconstrNewdatNmMu.csv")
+write.csv(out.approx.nm$fhat, "~jacquelinemauro/Dropbox/sorter/RGassigvecApconstrNewdatNmMu.csv")
+write.csv(out.approx.nm$muhat, "~jacquelinemauro/Dropbox/sorter/RGmuhatApconstrNewdatNmMu.csv")
+write.csv(out.approx.nm$pihat, "~jacquelinemauro/Dropbox/sorter/RGpihatApconstrNewdatNmMu.csv")
+write.csv(c(out.approx.nm$psi,out.approx.nm$sd),"~jacquelinemauro/Dropbox/sorter/RGestsApconstrNewdatNmMu.csv")
+
+# if you want the plug in
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/RGmuhatApconstrNewdatNmMu.csv")[,-1])
+Avals <- names(pris.dummies)
+assig.mat <- sapply(Avals, function(x) as.numeric(Avals[assig.mu] == x))
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/RGestsdApConstrPINewdat.csv")
+
+# using SL -- note: fhat still predicted by ranger classifier based on muhat
+dist.df <- data.frame(dist.mat)
+out.approx.nm.sl <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD, nsplits = 2, mu.algo = 'superlearner', pi.algo = 'superlearner')
+write.csv(out.approx.nm.sl$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsApconstrNewdatNmMu.csv")
+write.csv(out.approx.nm.sl$fhat, "~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNmMu.csv")
+write.csv(out.approx.nm.sl$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNmMu.csv")
+write.csv(out.approx.nm.sl$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatApconstrNewdatNmMu.csv")
+write.csv(c(out.approx.nm.sl$psi,out.approx.nm.sl$sd),"~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNmMu.csv")
+
+# if you want the plug in
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNmMu.csv")[,-1])
+assig.mu <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNmMu.csv")[,-1]
+Avals <- names(pris.dummies)
+assig.mat <- sapply(Avals, function(x) as.numeric(Avals[assig.mu] == x))
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdApConstrPINewdatMu.csv")
+
+
+##### output all nuisance parameters and unconstrained estimate using named vec, sl, 5 splits ####
+dist.df <- data.frame(dist.mat)
+out.combo.nm <- constr.opt.causal.nm(df, aLevel = dist.df, nsplits = 5, obsD = obsD,mu.algo = 'superlearner', pi.algo = 'superlearner')
+write.csv(out.combo.nm$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsUnconstrNewdatNm5.csv")
+write.csv(out.combo.nm$assig.vec, "~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNm5.csv")
+write.csv(out.combo.nm$phihat, "~jacquelinemauro/Dropbox/sorter/SLphihatUnconstrNewdatNm5.csv")
+write.csv(out.combo.nm$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm5.csv")
+write.csv(out.combo.nm$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNm5.csv")
+write.csv(c(out.combo.nm$psi,out.combo.nm$sd),"~jacquelinemauro/Dropbox/sorter/SLestsUnconstrNewdatNm5.csv")
+
+##### make a figure of the results #####
+unconstrained <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsUnconstrNewdatNm.csv")[,-1]
+constrained <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdat.csv")[,-1]
+approx <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNm.csv")[,-1]
+observed <- c(mean(df$y), NA)
+
+plot.df <- data.frame(rbind(unconstrained,constrained,approx,observed))
+plot.df$type <- c('Unconstrained', 'Constrained', 'Approx. Constrained','Observed')
+plot.df$type <- factor(plot.df$type,
+                       levels = c('Observed','Unconstrained', 'Constrained', 'Approx. Constrained'))
+
+require(ggplot2)
+g <- ggplot(plot.df, aes(x=type, y=est)) +
+  geom_errorbar(aes(ymin = est - sd, ymax = est + sd), width=.1) +
+  geom_line() +
+  geom_point()+
+  geom_hline(yintercept = plot.df$est[plot.df$type=='Observed'], col = 'red')+
+  xlab("Procedure") + ylab("Estimate") + theme_bw()
+ggsave(filename = '~jacquelinemauro/Dropbox/sorter/OutputScatter.png',plot = g,height = 5, width = 7)
 

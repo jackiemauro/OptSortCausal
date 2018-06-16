@@ -126,7 +126,7 @@ mu.pred.sl.nm <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL
   preds = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
   return(preds)
 }
-mu.pred.rg.nm <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"), aMat.train, aMat.test){
+mu.pred.rg.nm <- function(a.val, train.df, Xtrain, Xtest, aMat.train, aMat.test){
   d <- cbind(train.df$y,Xtrain); names(d)<-c('y',names(Xtrain))
   d$obsD <- aMat.train[,names(aMat.train)==a.val]
   Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]

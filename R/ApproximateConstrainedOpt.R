@@ -90,7 +90,7 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
 
     ### outputs for matlab
     out.muF[train,] <- muF
-    constr <- round(apply(aLevel[train,],2,sum) * 1.05)
+    constr <- apply(aLevel[train,],2,sum)
 
     ### send muhat matrix to matlab, constraint for constrained optimization
     write.csv(constr, "~jacquelinemauro/Dropbox/sorter/optConstr.csv")
@@ -101,12 +101,17 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
     f.mat <- read.csv("~jacquelinemauro/Dropbox/sorter/optfhat.csv", header = F)
     f.con <- Avals[apply(f.mat,1,which.max)]
 
-    ### train E(f|X) on first sample -- how do i deal with distance in the test set?
-    Xtrain$obsD <- sapply(1:dim(f.mat)[1], function(y) aMat.train[y,which.max(f.mat[y,])])
-    #Xtest$obsD <- aMat.test[,names(aMat.test)==f.con]
-    Xtest$obsD <- obsD[test]
-    rng.dat <- data.frame(A = as.factor(f.con), Xtrain)
-    fhat = predict(ranger::ranger(A~., data = rng.dat, write.forest = T), Xtest, type = 'response')$pre
+    ### train E(f|X) on first sample & predict on 2nd based on covariates
+    #how do i deal with distance in the test set?
+    Xtrain.d <- cbind(Xtrain, aMat.train)
+    Xtest.d <- cbind(Xtest, aMat.test)
+    rng.dat <- data.frame(A = as.factor(f.con), Xtrain.d)
+    fhat = predict(ranger::ranger(A~., data = rng.dat, write.forest = T), Xtest.d, type = 'response')$pre
+
+    ### train E(f|X) on first sample & predict on 2nd based on muhat
+    # rng.dat <- data.frame(A = as.factor(f.con), muF)
+    # test.muhat <- data.frame(preds); names(test.muhat) <- names(rng.dat)[-1]
+    # fhat = predict(ranger::ranger(A~., data = rng.dat, write.forest = T), test.muhat, type = 'response')$pre
 
     ### train E(Y|A,X) & predict E(Y|A = a, X)
     phat.pre[phat.pre < 1e-3] = 1e-3
@@ -115,7 +120,8 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
     phat = diag(phat.pre %*% temp)
 
     ### get estimate of effect at assigned A
-    mu.hat = diag(preds %*% t(model.matrix(~Avals[fhat]-1))) # check this
+    temp = sapply(Avals, function(x) as.numeric(Avals[fhat] == x))
+    mu.hat = diag(preds %*% t(temp))
     ifvals = (as.numeric(test.df$A == fhat)/phat) * (test.df$y - mu.hat) + mu.hat
     psihat[vfold] = mean(ifvals[phat!=0])
     sdhat[vfold] = sd(ifvals[phat!=0])/sqrt(dim(df)[1])

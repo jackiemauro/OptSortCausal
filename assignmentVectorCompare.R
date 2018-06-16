@@ -92,21 +92,25 @@ sec.level <- data.frame(A = names(dist.df), level = sec.level)
 fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNm.csv")[,-1]
 fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F),1,which.max)
 fO <- df$A
+fA <- read.csv("~jacquelinemauro/Dropbox/sorter/RGassigvecApconstrNewdatNmMu.csv")[,-1]
 
 # set up datasets for each of the assignments
 D <- df; D$dist <- obsD
-dfU <- dfC <- D
-dfC$A <- names(dist.df)[fC];dfU$A <- names(dist.df)[fU]
+dfU <- dfC <- dfA <- D
+dfC$A <- names(dist.df)[fC];dfU$A <- names(dist.df)[fU]; dfA$A <- names(dist.df)[fA]
 dfC <- merge(dfC,sec.level); dfU <- merge(dfU,sec.level); D <- merge(D,sec.level)
 
 # get new distances -- i'm sure there's a cleaner way but w/e
+unc.distance <- con.distance <- app.distance <- obsD
 for(i in 1:dim(dist.df)[1]){
   unc.distance[i] = dist.df[i, which(names(dist.df)==dfU$A[i])]
   con.distance[i] = dist.df[i, which(names(dist.df)==dfC$A[i])]
+  app.distance[i] = dist.df[i, which(names(dist.df)==dfA$A[i])]
 }
 
 dfU$dist <- unc.distance
 dfC$dist <- con.distance
+dfA$dist <- app.distance
 
 nms <- c('Recidivism','Prison','Length of Stay', 'White',
                                'Urban',"Prior Arrests" , "Married","Violent","lsir Score","Age",
@@ -117,20 +121,25 @@ nms <- c('Recidivism','Prison','Length of Stay', 'White',
 ########## basic distributional changes ##########
 # how often do the vectors agree? almost never
 mean(dfU$A==dfC$A)
+mean(dfU$A==dfA$A)
+mean(dfC$A==dfA$A)
 mean(fO==dfC$A)
 mean(fO==dfU$A)
+mean(fO == dfA$A)
 mean((fO==dfU$A)&(dfU$A==dfC$A))
 
 ########## do the count distributions change much? #########
 orig.dist <- table(D$A)
 unc.dist <- table(dfU$A)
 con.dist <- table(dfC$A)
+app.dist <- table(dfA$A)
 
 unc.change <- unc.dist - orig.dist
 con.change <- con.dist - orig.dist
+app.change <- app.dist - orig.dist
 
 png('~jacquelinemauro/Dropbox/sorter/Figures/CountChangeBoth.png')
-par(mfrow = c(1,2))
+par(mfrow = c(1,3))
 plot(c(orig.dist),c(unc.dist), xlim = c(50,500),
      xlab = "Observed Counts", ylab = "Unconstrained Counts",
      main = "Unconstrained",
@@ -140,6 +149,12 @@ abline(0,1)
 plot(c(orig.dist),c(con.dist), xlim = c(50,500),
      xlab = "Observed Counts", ylab = "Constrained Counts",
      main = "Constrained",
+     pch= 19)
+abline(0,1)
+
+plot(c(orig.dist),c(app.dist), xlim = c(50,500),
+     xlab = "Observed Counts", ylab = "Approx. Constrained Counts",
+     main = "Approx. Constrained",
      pch= 19)
 abline(0,1)
 par(mfrow = c(1,1))
