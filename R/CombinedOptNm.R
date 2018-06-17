@@ -54,14 +54,34 @@ constr.opt.causal.nm <- function(df,aLevel,obsD, nsplits = 2,
     Xtest <- test.df[,-c(1:2)]
     aMat.train <- aLevel[train,]
     aMat.test <- aLevel[test,]
+    Adummies <- model.matrix(~df$A-1)
+    Adummies.train <- Adummies[train,]
 
     ### train E(Y|A,X) & predict E(Y|A = a, X) for each a
     if(mu.algo == 'ranger'){
-      list.out = lapply(Avals, function(a) mu.pred.rg.nm(train.df = train.df, Xtrain = Xtrain, Xtest = Xtest, a.val = a,aMat.train=aMat.train, aMat.test=aMat.test))
+      d <- cbind(train.df$y,Xtrain,Adummies.train)
+      names(d)<-c('y',names(Xtrain), Avals)
+      Adummies.test <- matrix(rep(0,dim(Xtest)[1]*n.avals),ncol = n.avals)
+
+      mu.model <- ranger::ranger(y~., data = d, write.forest = T)
+      list.out = lapply(Avals, function(a) mu.pred.rg.nm(Xtest,Adummies.test,aMat.test,a.val=a,mu.model,d))
       preds <- matrix(unlist(list.out),ncol = length(Avals), byrow = F)
     }
+    # if(mu.algo == 'superlearner'){
+    #   Xd <- cbind(Xtrain,Adummies.train)
+    #   names(Xd) <- c(names(Xtrain), Avals)
+    #   Adummies.test <- matrix(rep(0,dim(Xtest)[1]*n.avals),ncol = n.avals)
+    #
+    #   mu.model = SuperLearner(Y = train.df$y, X = Xd, family = binomial(), SL.library = sl.lib)
+    #   list.out = lapply(Avals, function(a) mu.pred.sl.nm(Xd,Xtest,Adummies.test,aMat.test,a.val=a,mu.model))
+    #   preds <- matrix(unlist(list.out),ncol = length(Avals), byrow = F)
+    # }
     if(mu.algo == 'superlearner'){
-      list.out = lapply(Avals, function(a) mu.pred.sl.nm(train.df = train.df, Xtrain = Xtrain, Xtest = Xtest, a.val = a,aMat.train=aMat.train, aMat.test=aMat.test))
+      Xd <- cbind(Xtrain,train.df$A)
+      names(Xd) <- c(names(Xtrain), "A")
+
+      mu.model = SuperLearner(Y = train.df$y, X = Xd, family = binomial(), SL.library = sl.lib)
+      list.out = lapply(Avals, function(a) mu.pred.sl.nm(Xtest,aMat.test,a.val=a,mu.model))
       preds <- matrix(unlist(list.out),ncol = length(Avals), byrow = F)
     }
 
@@ -82,7 +102,6 @@ constr.opt.causal.nm <- function(df,aLevel,obsD, nsplits = 2,
     if(pi.algo == 'ranger2'){
       phat.pre = pi.pred.rg2.nm(train.df=train.df,Xtrain=Xtrain,Xtest=Xtest)
     }
-
 
     # truncate pi values
     phat.pre[phat.pre < 1e-3] = 1e-3
@@ -118,49 +137,3 @@ constr.opt.causal.nm <- function(df,aLevel,obsD, nsplits = 2,
 }
 
 
-# nuisance parameter estimation functions
-mu.pred.sl.nm <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"), aMat.train, aMat.test){
-  Xtrain$obsD <- aMat.train[,names(aMat.train)==a.val]
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
-  out = SuperLearner(Y = train.df$y, X = Xtrain, family = binomial(), SL.library = sl.lib)
-  preds = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
-  return(preds)
-}
-mu.pred.rg.nm <- function(a.val, train.df, Xtrain, Xtest, aMat.train, aMat.test){
-  d <- cbind(train.df$y,Xtrain); names(d)<-c('y',names(Xtrain))
-  d$obsD <- aMat.train[,names(aMat.train)==a.val]
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
-  preds <- predict(ranger::ranger(y~., data = d, write.forest = T), Xtest)$pre
-  return(preds)
-}
-pi.pred.sl.nm <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"), aMat.train, aMat.test){
-  Xtrain$obsD <- aMat.train[,names(aMat.train)==a.val]
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
-  out = SuperLearner(Y = as.numeric(train.df$A==a.val), X = Xtrain, family = binomial(), SL.library = sl.lib)
-  preds = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
-  return(preds)
-}
-pi.pred.lg.nm <- function(a.val, train.df, Xtrain, Xtest, aMat.train, aMat.test){
-  #need to cheange to nm
-  d <- cbind(as.numeric(a.val==train.df$A),Xtrain); names(d)<-c('A',names(Xtrain))
-  d$obsD <- aMat.train[,names(aMat.train)==a.val]
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
-  preds <- predict(glm(A~., data = d, family = binomial), newdata = Xtest, type = 'response')
-  return(preds)
-}
-pi.pred.rg.nm <- function(a.val, train.df, Xtrain, Xtest, aMat.train, aMat.test){
-  library('ranger')
-  d <- cbind(as.numeric(a.val==train.df$A),Xtrain); names(d)<-c('A',names(Xtrain))
-  d$obsD <- aMat.train[,names(aMat.train)==a.val]
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
-  preds <- predict(ranger::ranger(as.factor(A)~., data = d, write.forest = T,probability = T), Xtest)$pre
-  return(preds[,2])
-}
-pi.pred.rg2.nm <- function(train.df, Xtrain, Xtest){
-  library('ranger')
-  #need to cheange to nm
-  # does not use the distance value
-  d <- cbind(train.df$A,Xtrain); names(d)<-c('A',names(Xtrain))
-  preds <- predict(ranger::ranger(as.factor(A)~., data = d, write.forest = T,probability = T), Xtest)$pre
-  return(preds)
-}

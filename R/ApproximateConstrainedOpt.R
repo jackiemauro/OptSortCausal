@@ -139,19 +139,3 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
               muhat = out.mu, pihat = out.pi, fhat = est.assig.vec))
 }
 
-mu.pred.sl.nm.ap <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"), aMat.train, aMat.test){
-  Xtrain$obsD <- aMat.train[,names(aMat.train)==a.val]
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
-  out = SuperLearner(Y = train.df$y, X = Xtrain, family = binomial(), SL.library = sl.lib)
-  preds1 = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
-  preds2 = c(predict.SuperLearner(out, newdata = Xtrain, onlySL = TRUE)[[1]])
-  return(list(preds1,preds2))
-}
-mu.pred.rg.nm.ap <- function(a.val, train.df, Xtrain, Xtest, sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"), aMat.train, aMat.test){
-  d <- cbind(train.df$y,Xtrain); names(d)<-c('y',names(Xtrain))
-  d$obsD <- aMat.train[,names(aMat.train)==a.val]
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
-  preds1 <- predict(ranger::ranger(y~., data = d, write.forest = T), Xtest)$pre
-  preds2 <- predict(ranger::ranger(y~., data = d, write.forest = T), Xtrain)$pre
-  return(list(preds1,preds2))
-}
