@@ -279,4 +279,20 @@ sd <- sd(ifvals)/sqrt(length(ifvals))
 write.csv(cbind(est, sd), "~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdatNmA.csv")
 
 #### June 16: calculate approximate constrained value ####
+dist.df <- data.frame(dist.mat)
+out.approx.nm.slA <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD, nsplits = 2, mu.algo = 'superlearner', pi.algo = 'superlearner')
+write.csv(out.approx.nm.slA$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsApconstrNewdatNmMuA.csv")
+write.csv(out.approx.nm.slA$fhat, "~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNmMuA.csv")
+write.csv(out.approx.nm.slA$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNmMuA.csv")
+write.csv(out.approx.nm.slA$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatApconstrNewdatNmMuA.csv")
+write.csv(c(out.approx.nm.slA$psi,out.approx.nm.sl$sd),"~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNmMuA.csv")
+
+# if you want the plug in
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNmMuA.csv")[,-1])
+assig.mu <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNmMuA.csv")[,-1]
+Avals <- names(pris.dummies)
+assig.mat <- sapply(Avals, function(x) as.numeric(Avals[assig.mu] == x))
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdApConstrPINewdatMuA.csv")
 

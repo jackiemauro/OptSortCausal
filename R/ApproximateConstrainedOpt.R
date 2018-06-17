@@ -57,12 +57,17 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
 
     ### train E(Y|A,X) & predict E(Y|A = a, X) for each a
     if(mu.algo == 'ranger'){
-      list.out = lapply(Avals, function(a) mu.pred.rg.nm.ap(train.df = train.df, Xtrain = Xtrain, Xtest = Xtest, a.val = a,aMat.train=aMat.train, aMat.test=aMat.test))
+      mu.model = ranger::ranger(y~., data = train.df, write.forest = TRUE)
+      list.out = lapply(Avals, function(a) mu.pred.rg.nm.ap(a.val, train.df, Xtrain, Xtest, aMat.test, mu.model))
       preds <- matrix(unlist(lapply(list.out, function(l) l[[1]])),ncol = length(Avals), byrow = F)
       muF <- matrix(unlist(lapply(list.out, function(l) l[[2]])),ncol = length(Avals), byrow = F)
     }
     if(mu.algo == 'superlearner'){
-      list.out = lapply(Avals, function(a) mu.pred.sl.nm.ap(train.df = train.df, Xtrain = Xtrain, Xtest = Xtest, a.val = a,aMat.train=aMat.train, aMat.test=aMat.test))
+      Xd <- cbind(Xtrain,train.df$A)
+      names(Xd) <- c(names(Xtrain), "A")
+
+      mu.model = SuperLearner(Y = train.df$y, X = Xd, family = binomial(), SL.library = sl.lib)
+      list.out = lapply(Avals, function(a) mu.pred.sl.nm(Xtest,aMat.test,a.val=a,mu.model))
       preds <- matrix(unlist(lapply(list.out, function(l) l[[1]])),ncol = length(Avals), byrow = F)
       muF <- matrix(unlist(lapply(list.out, function(l) l[[2]])),ncol = length(Avals), byrow = F)
     }

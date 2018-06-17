@@ -57,39 +57,42 @@ for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$K
 # get true f vector
 # it's probably better to write a matlab script that will do all the constraining at once
 get.f <- function(D){
-  constr <- round(table(sort(D$data$a))*1.05)
+  constr <- as.numeric(round(table(sort(D$data$a))*1.05))
   Avals <- sort(unique(D$data$a))
   ### send muhat matrix to matlab, constraint for constrained optimization
   write.csv(constr, "~jacquelinemauro/Dropbox/sorter/approxSim/optConstr.csv")
   write.csv(D$true.mumat, "~jacquelinemauro/Dropbox/sorter/approxSim/optMuhat.csv")
-  run_matlab_script("~jacquelinemauro/Dropbox/sorter/approxSim/approxConstrSim.m")
+  run_matlab_script("~jacquelinemauro/Dropbox/sorter/approxSim/approxConstr.m")
 
   ### read assignment vector from matlab
   f.mat <- read.csv("~jacquelinemauro/Dropbox/sorter/approxSim/optfhat.csv", header = F)
   f.con <- Avals[apply(f.mat,1,which.max)]
   f.con
 }
-f.vecs <- lapply(datlist, function(y) lapply(y, function(m) get.f(D)))
+f.vecs <- lapply(datlist, function(y) lapply(y, function(m) get.f(m)))
 for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$f.vec <- f.vecs[[l]][[j]]}}
 
 # get true causal parameter
 get.psi <- function(D){
-  df = D$data; mumat = D$true.mumat; pimat = D$true.pimat; f.vec = D$f.vec
-  Avals = sort(unique(df$a))
-  mu.hat = diag(mumat %*% t(model.matrix(~Avals[f.vec]-1)))
-  pi.hat = diag(pimat %*% temp)
-  (as.numeric(df$a == f.vec)/phat) * (df$y - mu.hat) + mu.hat
+  dat = D$data; mumat = D$true.mumat; pimat = D$true.pimat; f.vec = D$f.vec
+  Avals = sort(unique(dat$a))
+  temp = sapply(Avals, function(x) as.numeric(Avals[f.vec] == x))
+  mu.hat = diag(mumat %*% t(temp))
+  pi.hat = diag(pimat %*% t(temp))
+  ifs = (as.numeric(dat$a == f.vec)/pi.hat) * (dat$y - mu.hat) + mu.hat
+  return(list(effect = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
 }
 psis <- lapply(datlist, function(y) lapply(y, function(m) get.psi(D=m)))
+psis.mat <- lapply(psis, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
 for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psi <- psis[[l]][[j]]}}
 
 # add error terms to mumat and pihat
 add.error <- function(D, e.mean){
-  N = dim(mumat)[1]; B = N^(1/D$K); num.a = length(unique(D$data$a))
-  errs <- matrix(rnorm(N*2*num.a,e.mean,1)/B, ncol = num.a)
+  N = dim(D$true.mumat)[1]; B = N^(1/D$K); num.a = length(unique(D$data$a))
+  errs <- matrix(rnorm(N*2*num.a,e.mean,1)/B, ncol = 2*num.a)
   muhat <- D$true.mumat + errs[,1:num.a]
   pihat <- D$true.pimat + errs[,(num.a+1):(2*num.a)]
-  return(list(muhat,pihat))
+  return(list(muhat = muhat, pihat = pihat))
 }
 etahat <- lapply(datlist, function(y) lapply(y, function(m) add.error(D=m, e.mean = 2)))
 for(l in 1:length(datlist)){
@@ -102,13 +105,13 @@ for(l in 1:length(datlist)){
 # get fhat from noisy mumat and pihat
 # again, it's probably better to write a matlab script that will do all the constraining at once
 get.fhat <- function(D){
-  constr <- round(table(sort(D$data$a))*1.05)
+  constr <- as.numeric(round(table(sort(D$data$a))*1.05))
   Avals <- sort(unique(D$data$a))
 
   ### send muhat matrix to matlab, constraint for constrained optimization
   write.csv(constr, "~jacquelinemauro/Dropbox/sorter/approxSim/optConstr.csv")
   write.csv(D$muhat, "~jacquelinemauro/Dropbox/sorter/approxSim/optMuhat.csv")
-  run_matlab_script("~jacquelinemauro/Dropbox/sorter/approxSim/approxConstrSim.m")
+  run_matlab_script("~jacquelinemauro/Dropbox/sorter/approxSim/approxConstr.m")
 
   ### read assignment vector from matlab
   f.mat <- read.csv("~jacquelinemauro/Dropbox/sorter/optfhat.csv", header = F)
@@ -120,11 +123,14 @@ for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$f
 
 # get estimated psihat
 get.psihat <- function(D){
-  df = D$data; mumat = D$muhat; pimat = D$pihat; f.vec = D$fhat
-  Avals = sort(unique(df$a))
-  mu.hat = diag(mumat %*% t(model.matrix(~Avals[f.vec]-1)))
-  pi.hat = diag(pimat %*% temp)
-  (as.numeric(df$a == f.vec)/phat) * (df$y - mu.hat) + mu.hat
+  dat = D$data; mumat = D$muhat; pimat = D$pihat; f.vec = D$fhat
+  Avals = sort(unique(dat$a))
+  temp = sapply(Avals, function(x) as.numeric(Avals[f.vec] == x))
+  mu.hat = diag(mumat %*% t(temp))
+  pi.hat = diag(pimat %*% t(temp))
+  ifs = (as.numeric(dat$a == f.vec)/pi.hat) * (dat$y - mu.hat) + mu.hat
+  return(list(est = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
 }
 psihats <- lapply(datlist, function(y) lapply(y, function(m) get.psihat(D=m)))
+psihat.mat <- lapply(psihats, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
 for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihat <- psihats[[l]][[j]]}}
