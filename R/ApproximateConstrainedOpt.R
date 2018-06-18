@@ -67,7 +67,7 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
       names(Xd) <- c(names(Xtrain), "A")
 
       mu.model = SuperLearner(Y = train.df$y, X = Xd, family = binomial(), SL.library = sl.lib)
-      list.out = lapply(Avals, function(a) mu.pred.sl.nm(Xtest,aMat.test,a.val=a,mu.model))
+      list.out = lapply(Avals, function(a) mu.pred.sl.nm.ap(Xtest=Xtest,Xtrain=Xtrain,aMat.test=aMat.test,a.val=a,mu.model=mu.model))
       preds <- matrix(unlist(lapply(list.out, function(l) l[[1]])),ncol = length(Avals), byrow = F)
       muF <- matrix(unlist(lapply(list.out, function(l) l[[2]])),ncol = length(Avals), byrow = F)
     }
@@ -96,6 +96,7 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
     ### outputs for matlab
     out.muF[train,] <- muF
     constr <- apply(aLevel[train,],2,sum)
+    constr <- c(round(table(train.df$A)*1.05))
 
     ### send muhat matrix to matlab, constraint for constrained optimization
     write.csv(constr, "~jacquelinemauro/Dropbox/sorter/optConstr.csv")
@@ -105,18 +106,19 @@ approx.constr.opt.causal.nm <- function(df,aLevel,obsD,nsplits = 2,
     ### read assignment vector from matlab
     f.mat <- read.csv("~jacquelinemauro/Dropbox/sorter/optfhat.csv", header = F)
     f.con <- Avals[apply(f.mat,1,which.max)]
+    f.con <- factor(f.con, levels = Avals)
 
     ### train E(f|X) on first sample & predict on 2nd based on covariates
     #how do i deal with distance in the test set?
-    Xtrain.d <- cbind(Xtrain, aMat.train)
-    Xtest.d <- cbind(Xtest, aMat.test)
-    rng.dat <- data.frame(A = as.factor(f.con), Xtrain.d)
-    fhat = predict(ranger::ranger(A~., data = rng.dat, write.forest = T), Xtest.d, type = 'response')$pre
+    # Xtrain.d <- cbind(Xtrain, aMat.train)
+    # Xtest.d <- cbind(Xtest, aMat.test)
+    # rng.dat <- data.frame(A = as.factor(f.con), Xtrain.d)
+    # fhat = predict(ranger::ranger(A~., data = rng.dat, write.forest = T), Xtest.d, type = 'response')$pre
 
     ### train E(f|X) on first sample & predict on 2nd based on muhat
-    # rng.dat <- data.frame(A = as.factor(f.con), muF)
-    # test.muhat <- data.frame(preds); names(test.muhat) <- names(rng.dat)[-1]
-    # fhat = predict(ranger::ranger(A~., data = rng.dat, write.forest = T), test.muhat, type = 'response')$pre
+    rng.dat <- data.frame(A = f.con, muF)
+    test.muhat <- data.frame(preds); names(test.muhat) <- names(rng.dat)[-1]
+    fhat = predict(ranger::ranger(A~., data = rng.dat, write.forest = T), test.muhat, type = 'response')$pre
 
     ### train E(Y|A,X) & predict E(Y|A = a, X)
     phat.pre[phat.pre < 1e-3] = 1e-3

@@ -1,6 +1,8 @@
 # attempt to set up a simulation for the approximate constrained procedure
 # not going to attempt to set up something where i know the exact answer
 # will instead output true mu,pi terms, pass through optimizer and add noise
+# need to figure out mu and pi expectations though
+# need to add unconstrained optimization, compare using estimated and true f
 
 rm(list = ls())
 library(ggplot2)
@@ -43,7 +45,7 @@ if.func <- function(D){
   ratM * (df$y - mu.hat) + mu.hat
 }
 
-### run some simulations adding various noise (not run) ----
+### run some simulations adding various noise----
 nsim = 10
 K = c(1.99,2.99,3.99,5.99)
 psi <- true.eff <- c(1,2,3)

@@ -285,7 +285,7 @@ write.csv(out.approx.nm.slA$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsApc
 write.csv(out.approx.nm.slA$fhat, "~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNmMuA.csv")
 write.csv(out.approx.nm.slA$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNmMuA.csv")
 write.csv(out.approx.nm.slA$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatApconstrNewdatNmMuA.csv")
-write.csv(c(out.approx.nm.slA$psi,out.approx.nm.sl$sd),"~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNmMuA.csv")
+write.csv(c(out.approx.nm.slA$psi,out.approx.nm.slA$sd),"~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNmMuA.csv")
 
 # if you want the plug in
 muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrNewdatNmMuA.csv")[,-1])

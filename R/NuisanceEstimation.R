@@ -52,11 +52,12 @@ pi.pred.rg2.nm <- function(train.df, Xtrain, Xtest){
 }
 
 ########## helpers for approximate constrained #######
-mu.pred.sl.nm.ap <- function(Xtest,aMat.test,a.val,mu.model,sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger")){
-  Xtest$obsD <- aMat.test[,names(aMat.train)==a.val]
+mu.pred.sl.nm.ap <- function(Xtest,Xtrain,aMat.test,a.val,mu.model,sl.lib= c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger")){
+  Xtest$obsD <- aMat.test[,names(aMat.test)==a.val]
   Xtest$A <- a.val; Xtest$A <- factor(Xtest$A, levels = names(aMat.test))
-  preds1 = c(predict.SuperLearner(out, newdata = Xtest, onlySL = TRUE)[[1]])
-  preds2 = c(predict.SuperLearner(out, newdata = Xtrain, onlySL = TRUE)[[1]])
+  Xtrain$A <- a.val; Xtrain$A <- factor(Xtrain$A, levels = names(aMat.test))
+  preds1 = c(predict.SuperLearner(mu.model, newdata = Xtest, onlySL = TRUE)[[1]])
+  preds2 = c(predict.SuperLearner(mu.model, newdata = Xtrain, onlySL = TRUE)[[1]])
   return(list(preds1,preds2))
 }
 mu.pred.rg.nm.ap <- function(a.val, train.df, Xtrain, Xtest, aMat.test, mu.model){
