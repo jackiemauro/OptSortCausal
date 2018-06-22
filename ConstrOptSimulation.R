@@ -7,57 +7,88 @@
 rm(list = ls())
 library(ggplot2)
 
-simFunc <- function(N=5000, psi = c(1,2,3)){
+# helper functions
+# should i be adding an error term to f to get f.hat rather than estimating on noisy mu's?
+simFunc <- function(N = 5000){
+  # constraint should not be binding
+  # psi = 0.25 is the true minimal E(Y^a)
   meanx = c(0,0,0)
-  alpha = matrix(c(1,1,-1),nrow = 3)
   x = matrix(unlist(lapply(meanx, function(x) rnorm(N,x,1))), nrow = N, byrow =T)
-  Pr = matrix(rep(1/3,N*3),ncol=3)
-  a = sapply(c(1:N), function(y) sample(c(1:3), size = 1, replace = T, prob = Pr[y,]))
-  y = diag((x+psi) %*% t(model.matrix(~as.factor(a)-1)))
 
-  ####### calculate true mu mat ######
-  # If pr = 1/3 all the time
-  #E(y) = E(y0 + (psi1+x1)*I(a==1) + (psi2+x2)*I(a==2) + (psi3+x3)*I(a==3))
-  #     = E((psi1+x1)*I(a==1) + (psi2+x2)*I(a==2) + (psi3+x3)*I(a==3))
-  #E((psi1+x1)*I(a==1)) = E(psi1*I(a==1) + x1*I(a==1))
-  #              = psi1*P(a==1) + E[E(x1*I(a==1)|x1)]
-  #              = psi1/3 + E[x1*P(a==1|x1)]
-  #              = psi1/3 + E[x1]/3
-  #              = psi1/3
-  true.mu = psi*Pr
+  # probability assigned to prison a
+  pi1 = .5*as.numeric(x[,1]>1) + .2
+  pi2 = .5*as.numeric(x[,1]< -1) + .2
+  pi = cbind(pi1, pi2, 1-pi1-pi2)
+  a = apply(pi, 1, function(x) sample(c(1:3), size = 1, prob = x))
 
-  # If pr depends on x -- need to figure out a good one for this
-  #E(y) = E(y0 + (psi1+x1)*I(a==1) + (psi2+x2)*I(a==2) + (psi3+x3)*I(a==3))
-  #     = E((psi1+x1)*I(a==1) + (psi2+x2)*I(a==2) + (psi3+x3)*I(a==3))
-  #E((psi1+x1)*I(a==1)) = E(psi1*I(a==1) + x1*I(a==1))
-  #              = psi1*E[P(a==1|x1)] + E[E(x1*I(a==1)|x1)]
-  #              = psi1*E[P(a==1|x1)] + E[x1*P(a==1|x1)]
-  # (eg)         = psi1*E[0.2*I(x1>.5) + .6*I(x1<=.5)] + E[x1*0.2*I(x1>.5) + x1*.6*I(x1<=.5)]
-  #              = psi1*(0.2*P(x1>.5) + .6*P(x1<=.5)) + E[x1*0.2*I(x1>.5) + x1*.6*I(x1<=.5)]
+  # probability prison a is your best prison
+  pi.star1 = .5*as.numeric(x[,2]>1) + .2
+  pi.star2 = .5*as.numeric(x[,2]< -1) + .2
+  pi.star = cbind(pi.star1, pi.star2, 1-pi.star1-pi.star2)
+  a.star = apply(pi.star, 1, function(x) sample(c(1:3), size = 1, prob = x))
 
-  return(list( data = data.frame(y,a,x),true.mumat = true.mu, true.pimat=Pr))
+  # outcome
+  mu.mat = sapply(c(1,2,3), function(k) .75 - .5*(k==a.star))
+  mu = runif(N,.5,1) - .5*(a == a.star)
+  y = rbinom(N, 1, mu)
+  return(list( data = data.frame(y,a,x),true.mumat = mu.mat, true.pimat=pi, a.star = a.star))
 }
+simFunc2 <- function(N = 5000){
+  # constraint should be binding
+  # psi = 0.25 is the true minimal E(Y^a)
+  meanx = c(0,0,0)
+  x = matrix(unlist(lapply(meanx, function(x) rnorm(N,x,1))), nrow = N, byrow =T)
 
+  # probability assigned to prison a
+  pi1 = .5*as.numeric(x[,1]>1) + .2
+  pi2 = .5*as.numeric(x[,1]< -1) + .2
+  pi = cbind(pi1, pi2, 1-pi1-pi2)
+  a = apply(pi, 1, function(x) sample(c(1:3), size = 1, prob = x))
+
+  # probability prison a is your best prison
+  # in this case, prison 1 best for many more individuals than can be assigned there
+  pi.star1 = .5*as.numeric(x[,2]>0) + .2
+  pi.star2 = .5*as.numeric(x[,2]< -1) + .2
+  pi.star = cbind(pi.star1, pi.star2, 1-pi.star1-pi.star2)
+  a.star = apply(pi.star, 1, function(x) sample(c(1:3), size = 1, prob = x))
+
+  # outcome
+  mu.mat = sapply(c(1,2,3), function(k) .75 - .5*(k==a.star))
+  mu = runif(N,.5,1) - .5*(a == a.star)
+  y = rbinom(N, 1, mu)
+  return(list( data = data.frame(y,a,x),true.mumat = mu.mat, true.pimat=pi, a.star = a.star))
+}
+simFunc3 <- function(N = 5000){
+  # constraint should be binding
+  # have less drastic difference in being at ideal vs not
+  meanx = c(0,0,0)
+  x = matrix(unlist(lapply(meanx, function(x) rnorm(N,x,1))), nrow = N, byrow =T)
+
+  # probability assigned to prison a
+  pi1 = .5*as.numeric(x[,1]>1) + .2
+  pi2 = .5*as.numeric(x[,1]< -1) + .2
+  pi = cbind(pi1, pi2, 1-pi1-pi2)
+  a = apply(pi, 1, function(x) sample(c(1:3), size = 1, prob = x))
+
+  # probability prison a is your best prison
+  # in this case, prison 1 best for many more individuals than can be assigned there
+  pi.star1 = .5*as.numeric(x[,2]>0) + .2
+  pi.star2 = .5*as.numeric(x[,2]< -.5) + .2
+  pi.star = cbind(pi.star1, pi.star2, 1-pi.star1-pi.star2)
+  a.star = apply(pi.star, 1, function(x) sample(c(1:3), size = 1, prob = x))
+
+  # outcome
+  mu.mat = sapply(c(1,2,3), function(k) .5 - .2*(k==a.star))
+  mu = runif(N,.25,.75) - .2*(a == a.star)
+  y = rbinom(N, 1, mu)
+  return(list( data = data.frame(y,a,x),true.mumat = mu.mat, true.pimat=pi, a.star = a.star))
+}
 if.func <- function(D){
   df = D$df; mu.pred = D$mu.pred; fhat = D$fhat; Avals = D$Avals; phat = D$phat
   mu.hat = diag(mu.pred %*% t(model.matrix(~Avals[fhat]-1))) + (rnorm(N,e.mean,1)/B)
   ratM = (as.numeric(df$A == fhat)/phat) + (rnorm(N,e.mean,1)/B)
   ratM * (df$y - mu.hat) + mu.hat
 }
-
-### run some simulations adding various noise----
-nsim = 10
-K = c(1.99,2.99,3.99,5.99)
-psi <- true.eff <- c(1,2,3)
-N = 5000 # size of dataset
-e.mean <- 2 # mean of error term
-
-# produce all datasets
-datlist <- lapply(c(1:length(K)), function(x) lapply(1:nsim, function(y) simFunc(N=5000)))
-for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$K <- K[l]}}
-
-# get true f vector
-# it's probably better to write a matlab script that will do all the constraining at once
 get.f <- function(D){
   constr <- as.numeric(round(table(sort(D$data$a))*1.05))
   Avals <- sort(unique(D$data$a))
@@ -71,41 +102,23 @@ get.f <- function(D){
   f.con <- Avals[apply(f.mat,1,which.max)]
   f.con
 }
-f.vecs <- lapply(datlist, function(y) lapply(y, function(m) get.f(m)))
-for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$f.vec <- f.vecs[[l]][[j]]}}
-
-# get true causal parameter
 get.psi <- function(D){
   dat = D$data; mumat = D$true.mumat; pimat = D$true.pimat; f.vec = D$f.vec
   Avals = sort(unique(dat$a))
   temp = sapply(Avals, function(x) as.numeric(Avals[f.vec] == x))
   mu.hat = diag(mumat %*% t(temp))
-  pi.hat = diag(pimat %*% t(temp))
-  ifs = (as.numeric(dat$a == f.vec)/pi.hat) * (dat$y - mu.hat) + mu.hat
-  return(list(effect = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
+  #pi.hat = diag(pimat %*% t(temp))
+  #ifs = (as.numeric(dat$a == f.vec)/pi.hat) * (dat$y - mu.hat) + mu.hat
+  #return(list(effect = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
+  return(list(effect = mean(mu.hat), sd = sd(mu.hat)/sqrt(length(f.vec))))
 }
-psis <- lapply(datlist, function(y) lapply(y, function(m) get.psi(D=m)))
-psis.mat <- lapply(psis, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
-for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psi <- psis[[l]][[j]]}}
-
-# add error terms to mumat and pihat
 add.error <- function(D, e.mean){
   N = dim(D$true.mumat)[1]; B = N^(1/D$K); num.a = length(unique(D$data$a))
   errs <- matrix(rnorm(N*2*num.a,e.mean,1)/B, ncol = 2*num.a)
   muhat <- D$true.mumat + errs[,1:num.a]
-  pihat <- D$true.pimat + errs[,(num.a+1):(2*num.a)]
-  return(list(muhat = muhat, pihat = pihat))
+  inv.pihat <- (1/D$true.pimat) + errs[,(num.a+1):(2*num.a)]
+  return(list(muhat = muhat, inv.pihat = inv.pihat))
 }
-etahat <- lapply(datlist, function(y) lapply(y, function(m) add.error(D=m, e.mean = 2)))
-for(l in 1:length(datlist)){
-  for(j in 1:length(datlist[[l]])){
-    datlist[[l]][[j]]$muhat <- etahat[[l]][[j]]$muhat
-    datlist[[l]][[j]]$pihat <- etahat[[l]][[j]]$pihat
-  }
-}
-
-# get fhat from noisy mumat and pihat
-# again, it's probably better to write a matlab script that will do all the constraining at once
 get.fhat <- function(D){
   constr <- as.numeric(round(table(sort(D$data$a))*1.05))
   Avals <- sort(unique(D$data$a))
@@ -116,23 +129,437 @@ get.fhat <- function(D){
   run_matlab_script("~jacquelinemauro/Dropbox/sorter/approxSim/approxConstr.m")
 
   ### read assignment vector from matlab
-  f.mat <- read.csv("~jacquelinemauro/Dropbox/sorter/optfhat.csv", header = F)
+  f.mat <- read.csv("~jacquelinemauro/Dropbox/sorter/approxSim/optfhat.csv", header = F)
   f.con <- Avals[apply(f.mat,1,which.max)]
   f.con
 }
-fhats <- lapply(datlist, function(y) lapply(y, function(m) get.f(D)))
-for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$fhat <- fhats[[l]][[j]]}}
-
-# get estimated psihat
 get.psihat <- function(D){
-  dat = D$data; mumat = D$muhat; pimat = D$pihat; f.vec = D$fhat
+  dat = D$data; mumat = D$muhat; pimat = D$inv.pihat; f.vec = D$fhat
   Avals = sort(unique(dat$a))
   temp = sapply(Avals, function(x) as.numeric(Avals[f.vec] == x))
   mu.hat = diag(mumat %*% t(temp))
   pi.hat = diag(pimat %*% t(temp))
-  ifs = (as.numeric(dat$a == f.vec)/pi.hat) * (dat$y - mu.hat) + mu.hat
+  ifs = (as.numeric(dat$a == f.vec)*pi.hat) * (dat$y - mu.hat) + mu.hat
   return(list(est = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
 }
+get.psihatU <- function(D){
+  dat = D$data; mumat = D$muhat; pimat = D$inv.pihat; f.vec = D$muhat.min
+  Avals = sort(unique(dat$a))
+  temp = sapply(Avals, function(x) as.numeric(Avals[f.vec] == x))
+  mu.hat = diag(mumat %*% t(temp))
+  pi.hat = diag(pimat %*% t(temp))
+  ifs = (as.numeric(dat$a == f.vec)*pi.hat) * (dat$y - mu.hat) + mu.hat
+  return(list(est = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
+}
+get.psihatU2 <- function(D){
+  dat = D$data; mumat = D$true.mumat; pimat = D$true.pimat; f.vec = D$muhat.min
+  Avals = sort(unique(dat$a))
+  temp = sapply(Avals, function(x) as.numeric(Avals[f.vec] == x))
+  mu.hat = diag(mumat %*% t(temp))
+  #pi.hat = diag(pimat %*% t(temp))
+  #ifs = (as.numeric(dat$a == f.vec)/pi.hat) * (dat$y - mu.hat) + mu.hat
+  #return(list(est = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
+  return(list(est = mean(mu.hat), sd = sd(mu.hat)/sqrt(length(f.vec))))
+}
+get.psihat2 <- function(D){
+  dat = D$data; mumat = D$true.mumat; pimat = D$true.pimat; f.vec = D$fhat
+  Avals = sort(unique(dat$a))
+  temp = sapply(Avals, function(x) as.numeric(Avals[f.vec] == x))
+  mu.hat = diag(mumat %*% t(temp))
+  #pi.hat = diag(pimat %*% t(temp))
+  #ifs = (as.numeric(dat$a == f.vec)/pi.hat) * (dat$y - mu.hat) + mu.hat
+  #return(list(est = mean(ifs), sd = sd(ifs)/sqrt(length(f.vec))))
+  return(list(est = mean(mu.hat), sd = sd(mu.hat)/sqrt(length(f.vec))))
+}
+
+# parameter values
+nsim = 100
+K = c(1.99,2.99,3.99,5.99)
+N = 5000 # size of dataset
+e.mean <- 1 # mean of error term
+
+### run non-binding constraint version ----
+# produce all datasets
+datlist <- lapply(c(1:length(K)), function(x) lapply(1:nsim, function(y) simFunc(N=5000)))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$K <- K[l]}}
+
+# get true constrained f vector (f_c)
+f.vecs <- lapply(datlist, function(y) lapply(y, function(m) get.f(m)))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$f.vec <- f.vecs[[l]][[j]]}}
+
+# get true unconstrained f vector (f_u)
+mu.min = f.vecs
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$mu.min = apply(datlist[[l]][[j]]$true.mumat,1,which.min)
+    mu.min[[l]][[j]] = datlist[[l]][[j]]$mu.min
+  }
+}
+
+# get true constrained causal parameter (psi_c)
+psis <- lapply(datlist, function(y) lapply(y, function(m) get.psi(D=m)))
+psis.mat <- lapply(psis, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psi <- psis[[l]][[j]]}}
+
+# get true unconstrained causal parameter (psi_u)
+psiUs.mat <- psis.mat
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$psiU = mean(apply(datlist[[l]][[j]]$true.mumat,1,min))
+    psiUs.mat[[l]] = c(datlist[[l]][[j]]$psiU,sd(apply(datlist[[l]][[j]]$true.mumat,1,min)))
+  }
+}
+
+# add error terms to mumat and pihat
+etahat <- lapply(datlist, function(y) lapply(y, function(m) add.error(D=m, e.mean = 2)))
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$muhat <- etahat[[l]][[j]]$muhat
+    datlist[[l]][[j]]$pihat <- etahat[[l]][[j]]$pihat
+  }
+}
+
+# get unconstrained fhat from noisy mumat and pihat (fhat_u)
+muhat.min = f.vecs
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){
+  datlist[[l]][[j]]$muhat.min = apply(datlist[[l]][[j]]$muhat,1,which.min)
+  muhat.min[[l]][[j]] = datlist[[l]][[j]]$muhat.min
+  }
+}
+
+# get fhat from noisy mumat and pihat (fhat_c)
+fhats = f.vecs
+for(i in 1:length(datlist)){
+  for(j in 1:length(datlist[[i]])){
+    datlist[[i]][[j]]$fhat = get.fhat(datlist[[i]][[j]])
+    fhats[[i]][[j]] = datlist[[i]][[j]]$fhat
+  }
+}
+
+# get estimated unconstrained psihat (psihat_u)
+psihatUs <- lapply(datlist, function(y) lapply(y, function(m) get.psihatU(D=m)))
+psihatU.mat <- lapply(psihatUs, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihatU <- psihatUs[[l]][[j]]}}
+
+# get estimated psihat -- f, mu and pi all noisy (psihat_c)
 psihats <- lapply(datlist, function(y) lapply(y, function(m) get.psihat(D=m)))
 psihat.mat <- lapply(psihats, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
 for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihat <- psihats[[l]][[j]]}}
+
+# get estimated unconstrained psihat tilde -- f noisy, mu and pi true
+psihatU2s <- lapply(datlist, function(y) lapply(y, function(m) get.psihatU2(D=m)))
+psihatU2.mat <- lapply(psihatU2s, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihatU2 <- psihatU2s[[l]][[j]]}}
+
+# get estimated constrained psihat tilde -- f noisy, mu and pi true
+psihat2s <- lapply(datlist, function(y) lapply(y, function(m) get.psihat2(D=m)))
+psihat2.mat <- lapply(psihat2s, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihat2 <- psihat2s[[l]][[j]]}}
+
+# output summary statistics
+rmse_uhat_u <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psiU - j$psihatU$est)^2 ))))))
+rmse_uhat_utilde <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psihatU$est - j$psihatU2$est)^2 ))))))
+rmse_chat_c <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psi$effect - j$psihat$est)^2 ))))))
+rmse_chat_ctilde <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psihat$est - j$psihatU2$est)^2 ))))))
+
+bias_uhat_u <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psiU - j$psihatU$est) ))))))
+bias_uhat_utilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psihatU$est - j$psihatU2$est) ))))))
+bias_chat_c <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psi$effect - j$psihat$est) ))))))
+bias_chat_ctilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psihat$est - j$psihatU2$est) ))))))
+
+coverage_uhat_u <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihatU$est - 1.96*j$psihatU$sd <= j$psiU) & (j$psihatU$est + 1.96*j$psihatU$sd >= j$psiU) ))))))
+coverage_uhat_utilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihatU$est - 1.96*j$psihatU$sd <= j$psihatU2$est) & (j$psihatU$est + 1.96*j$psihatU$sd >= j$psihatU2$est) ))))))
+coverage_chat_c <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihat$est - 1.96*j$psihat$sd <= j$psi$effect) & (j$psihat$est + 1.96*j$psihat$sd >= j$psi$effect) ))))))
+coverage_chat_ctilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihat$est - 1.96*j$psihat$sd <= j$psihat2$est) & (j$psihat$est + 1.96*j$psihat$sd >= j$psihat2$est) ))))))
+
+tabs <- tabsU <- list()
+for(i in 1:length(datlist)){tabs[[i]] = round(matrix(apply(mapply(function(x,y) prop.table(table(x,y),1), fhats[[i]], f.vecs[[i]]),1,mean),ncol=3),5)}
+for(i in 1:length(datlist)){tabsU[[i]] = round(matrix(apply(mapply(function(x,y) prop.table(table(x,y),1), muhat.min[[i]], mu.min[[i]]),1,mean),ncol=3),5)}
+
+write.csv(do.call("rbind", tabs), "~jacquelinemauro/Dropbox/sorter/approxSim/ftables_notbinding.csv")
+write.csv(do.call("rbind", tabsU), "~jacquelinemauro/Dropbox/sorter/approxSim/fUtables_notbinding.csv")
+
+write.csv(data.frame(K,rmse_uhat_u,bias_uhat_u,coverage_uhat_u), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_uhat_u.csv")
+write.csv(data.frame(K,rmse_uhat_utilde,bias_uhat_utilde,coverage_uhat_utilde), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_uhat_utilde.csv")
+write.csv(data.frame(K,rmse_chat_c,bias_chat_c,coverage_chat_c), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_chat_c.csv")
+write.csv(data.frame(K,rmse_chat_ctilde,bias_chat_ctilde,coverage_chat_ctilde), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_chat_ctilde.csv")
+
+write.csv(cbind(K,matrix(unlist(psis.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/true_psi_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psihat.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/allnoise_psihat_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psihat2.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/fnoise_psihat_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psiUs.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/true_psiU_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psihatU.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/allnoise_psihatU_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psihatU2.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/fnoise_psihatU_notbinding.csv")
+
+
+### run binding constraint version ----
+# only change is simulation function and output naming
+# produce all datasets
+datlist <- lapply(c(1:length(K)), function(x) lapply(1:nsim, function(y) simFunc2(N=5000)))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$K <- K[l]}}
+
+# get true constrained f vector (f_c)
+f.vecs <- lapply(datlist, function(y) lapply(y, function(m) get.f(m)))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$f.vec <- f.vecs[[l]][[j]]}}
+
+# get true unconstrained f vector (f_u)
+mu.min = f.vecs
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$mu.min = apply(datlist[[l]][[j]]$true.mumat,1,which.min)
+    mu.min[[l]][[j]] = datlist[[l]][[j]]$mu.min
+  }
+}
+
+# get true constrained causal parameter (psi_c)
+psis <- lapply(datlist, function(y) lapply(y, function(m) get.psi(D=m)))
+psis.mat <- lapply(psis, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psi <- psis[[l]][[j]]}}
+
+# get true unconstrained causal parameter (psi_u)
+psiUs.mat <- psis.mat
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$psiU = mean(apply(datlist[[l]][[j]]$true.mumat,1,min))
+    psiUs.mat[[l]] = c(datlist[[l]][[j]]$psiU,sd(apply(datlist[[l]][[j]]$true.mumat,1,min)))
+  }
+}
+
+# add error terms to mumat and pihat
+etahat <- lapply(datlist, function(y) lapply(y, function(m) add.error(D=m, e.mean = 2)))
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$muhat <- etahat[[l]][[j]]$muhat
+    datlist[[l]][[j]]$pihat <- etahat[[l]][[j]]$pihat
+  }
+}
+
+# get unconstrained fhat from noisy mumat and pihat (fhat_u)
+muhat.min = f.vecs
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){
+  datlist[[l]][[j]]$muhat.min = apply(datlist[[l]][[j]]$muhat,1,which.min)
+  muhat.min[[l]][[j]] = datlist[[l]][[j]]$muhat.min
+}
+}
+
+# get fhat from noisy mumat and pihat (fhat_c)
+fhats = f.vecs
+for(i in 1:length(datlist)){
+  for(j in 1:length(datlist[[i]])){
+    datlist[[i]][[j]]$fhat = get.fhat(datlist[[i]][[j]])
+    fhats[[i]][[j]] = datlist[[i]][[j]]$fhat
+  }
+}
+
+# get estimated unconstrained psihat (psihat_u)
+psihatUs <- lapply(datlist, function(y) lapply(y, function(m) get.psihatU(D=m)))
+psihatU.mat <- lapply(psihatUs, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihatU <- psihatUs[[l]][[j]]}}
+
+# get estimated psihat -- f, mu and pi all noisy (psihat_c)
+psihats <- lapply(datlist, function(y) lapply(y, function(m) get.psihat(D=m)))
+psihat.mat <- lapply(psihats, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihat <- psihats[[l]][[j]]}}
+
+# get estimated unconstrained psihat tilde -- f noisy, mu and pi true
+psihatU2s <- lapply(datlist, function(y) lapply(y, function(m) get.psihatU2(D=m)))
+psihatU2.mat <- lapply(psihatU2s, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihatU2 <- psihatU2s[[l]][[j]]}}
+
+# get estimated constrained psihat tilde -- f noisy, mu and pi true
+psihat2s <- lapply(datlist, function(y) lapply(y, function(m) get.psihat2(D=m)))
+psihat2.mat <- lapply(psihat2s, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihat2 <- psihat2s[[l]][[j]]}}
+
+# output summary statistics
+rmse_uhat_u <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psiU - j$psihatU$est)^2 ))))))
+rmse_uhat_utilde <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psihatU$est - j$psihatU2$est)^2 ))))))
+rmse_chat_c <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psi$effect - j$psihat$est)^2 ))))))
+rmse_chat_ctilde <- unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psihat$est - j$psihatU2$est)^2 ))))))
+
+bias_uhat_u <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psiU - j$psihatU$est) ))))))
+bias_uhat_utilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psihatU$est - j$psihatU2$est) ))))))
+bias_chat_c <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psi$effect - j$psihat$est) ))))))
+bias_chat_ctilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psihat$est - j$psihatU2$est) ))))))
+
+coverage_uhat_u <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihatU$est - 1.96*j$psihatU$sd <= j$psiU) & (j$psihatU$est + 1.96*j$psihatU$sd >= j$psiU) ))))))
+coverage_uhat_utilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihatU$est - 1.96*j$psihatU$sd <= j$psihatU2$est) & (j$psihatU$est + 1.96*j$psihatU$sd >= j$psihatU2$est) ))))))
+coverage_chat_c <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihat$est - 1.96*j$psihat$sd <= j$psi$effect) & (j$psihat$est + 1.96*j$psihat$sd >= j$psi$effect) ))))))
+coverage_chat_ctilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihat$est - 1.96*j$psihat$sd <= j$psihat2$est) & (j$psihat$est + 1.96*j$psihat$sd >= j$psihat2$est) ))))))
+
+tabs <- tabsU <- list()
+for(i in 1:length(datlist)){tabs[[i]] = round(matrix(apply(mapply(function(x,y) prop.table(table(x,y),1), fhats[[i]], f.vecs[[i]]),1,mean),ncol=3),5)}
+for(i in 1:length(datlist)){tabsU[[i]] = round(matrix(apply(mapply(function(x,y) prop.table(table(x,y),1), muhat.min[[i]], mu.min[[i]]),1,mean),ncol=3),5)}
+
+write.csv(do.call("rbind", tabs), "~jacquelinemauro/Dropbox/sorter/approxSim/ftables_notbinding.csv")
+write.csv(do.call("rbind", tabsU), "~jacquelinemauro/Dropbox/sorter/approxSim/fUtables_notbinding.csv")
+
+write.csv(data.frame(K,rmse_uhat_u,bias_uhat_u,coverage_uhat_u), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_uhat_u.csv")
+write.csv(data.frame(K,rmse_uhat_utilde,bias_uhat_utilde,coverage_uhat_utilde), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_uhat_utilde.csv")
+write.csv(data.frame(K,rmse_chat_c,bias_chat_c,coverage_chat_c), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_chat_c.csv")
+write.csv(data.frame(K,rmse_chat_ctilde,bias_chat_ctilde,coverage_chat_ctilde), "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_notbinding_chat_ctilde.csv")
+
+write.csv(cbind(K,matrix(unlist(psis.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/true_psi_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psihat.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/allnoise_notpsihat_binding.csv")
+write.csv(cbind(K,matrix(unlist(psihat2.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/fnoise_psihat_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psiUs.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/true_psiU_notbinding.csv")
+write.csv(cbind(K,matrix(unlist(psihatU.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/allnoise_notpsihatU_binding.csv")
+write.csv(cbind(K,matrix(unlist(psihatU2.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/fnoise_psihatU_notbinding.csv")
+
+### run binding constraint, small effect version ----
+# only change is simulation function and output naming
+# produce all datasets
+datlist <- lapply(c(1:length(K)), function(x) lapply(1:nsim, function(y) simFunc3(N=5000)))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$K <- K[l]}}
+
+# get true constrained f vector (f_c)
+f.vecs <- lapply(datlist, function(y) lapply(y, function(m) get.f(m)))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$f.vec <- f.vecs[[l]][[j]]}}
+
+# get true unconstrained f vector (f_u)
+mu.min = f.vecs # this is useless, this is a.star
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$mu.min = apply(datlist[[l]][[j]]$true.mumat,1,which.min)
+    mu.min[[l]][[j]] = datlist[[l]][[j]]$mu.min
+  }
+}
+
+# get true constrained causal parameter (psi_c)
+psis <- lapply(datlist, function(y) lapply(y, function(m) get.psi(D=m)))
+psis.mat <- lapply(psis, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psi <- psis[[l]][[j]]}}
+
+# get true unconstrained causal parameter (psi_u)
+psiUs.mat <- psis.mat
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$psiU = mean(apply(datlist[[l]][[j]]$true.mumat,1,min))
+    psiUs.mat[[l]] = c(datlist[[l]][[j]]$psiU,sd(apply(datlist[[l]][[j]]$true.mumat,1,min)))
+  }
+}
+
+# add error terms to mumat and pihat
+etahat <- lapply(datlist, function(y) lapply(y, function(m) add.error(D=m, e.mean = e.mean)))
+for(l in 1:length(datlist)){
+  for(j in 1:length(datlist[[l]])){
+    datlist[[l]][[j]]$muhat <- etahat[[l]][[j]]$muhat
+    datlist[[l]][[j]]$inv.pihat <- etahat[[l]][[j]]$inv.pihat
+  }
+}
+
+# get unconstrained fhat from noisy mumat and pihat (fhat_u)
+muhat.min = f.vecs
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){
+  datlist[[l]][[j]]$muhat.min = apply(datlist[[l]][[j]]$muhat,1,which.min)
+  muhat.min[[l]][[j]] = datlist[[l]][[j]]$muhat.min
+}
+}
+
+# get fhat from noisy mumat and pihat (fhat_c)
+fhats = f.vecs
+for(i in 1:length(datlist)){
+  for(j in 1:length(datlist[[i]])){
+    datlist[[i]][[j]]$fhat = get.fhat(datlist[[i]][[j]])
+    fhats[[i]][[j]] = datlist[[i]][[j]]$fhat
+  }
+}
+
+# get estimated unconstrained psihat (psihat_u)
+psihatUs <- lapply(datlist, function(y) lapply(y, function(m) get.psihatU(D=m)))
+psihatU.mat <- lapply(psihatUs, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihatU <- psihatUs[[l]][[j]]}}
+
+# get estimated psihat -- f, mu and pi all noisy (psihat_c)
+psihats <- lapply(datlist, function(y) lapply(y, function(m) get.psihat(D=m)))
+psihat.mat <- lapply(psihats, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihat <- psihats[[l]][[j]]}}
+
+# get estimated unconstrained psihat tilde -- f noisy, mu and pi true
+psihatU2s <- lapply(datlist, function(y) lapply(y, function(m) get.psihatU2(D=m)))
+psihatU2.mat <- lapply(psihatU2s, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihatU2 <- psihatU2s[[l]][[j]]}}
+
+# get estimated constrained psihat tilde -- f noisy, mu and pi true
+psihat2s <- lapply(datlist, function(y) lapply(y, function(m) get.psihat2(D=m)))
+psihat2.mat <- lapply(psihat2s, function(k) apply(matrix(unlist(k), nrow = 2),1,mean))
+for(l in 1:length(datlist)){for(j in 1:length(datlist[[l]])){datlist[[l]][[j]]$psihat2 <- psihat2s[[l]][[j]]}}
+
+# output summary statistics
+rmse_uhat_u <- round(unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psiU - j$psihatU$est)^2 )))))),4)
+rmse_uhat_utilde <- round(unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psihatU$est - j$psihatU2$est)^2 )))))),4)
+rmse_chat_c <- round(unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psi$effect - j$psihat$est)^2 )))))),4)
+rmse_chat_ctilde <- round(unlist(lapply(datlist, function(k) sqrt(sum(unlist(lapply(k, function(j) (j$psihat$est - j$psihatU2$est)^2 )))))),4)
+
+bias_uhat_u <- round(unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psiU - j$psihatU$est) )))))),4)
+bias_uhat_utilde <- round(unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psihatU$est - j$psihatU2$est) )))))),4)
+bias_chat_c <- round(unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psi$effect - j$psihat$est) )))))),4)
+bias_chat_ctilde <- round(unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) abs(j$psihat$est - j$psihatU2$est) )))))),4)
+
+coverage_uhat_u <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihatU$est - 1.96*j$psihatU$sd <= j$psiU) & (j$psihatU$est + 1.96*j$psihatU$sd >= j$psiU) ))))))
+coverage_uhat_utilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihatU$est - 1.96*j$psihatU$sd <= j$psihatU2$est) & (j$psihatU$est + 1.96*j$psihatU$sd >= j$psihatU2$est) ))))))
+coverage_chat_c <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihat$est - 1.96*j$psihat$sd <= j$psi$effect) & (j$psihat$est + 1.96*j$psihat$sd >= j$psi$effect) ))))))
+coverage_chat_ctilde <- unlist(lapply(datlist, function(k) (mean(unlist(lapply(k, function(j) (j$psihat$est - 1.96*j$psihat$sd <= j$psihat2$est) & (j$psihat$est + 1.96*j$psihat$sd >= j$psihat2$est) ))))))
+f.correct = round(unlist(lapply(datlist, function(l) mean(unlist(lapply(l, function(k) mean(k$f.vec == k$fhat)))))),4)
+fU.correct = round(unlist(lapply(datlist, function(l) mean(unlist(lapply(l, function(k) mean(k$muhat.min == k$a.star)))))),4)
+
+tabs <- tabsU <- list()
+for(i in 1:length(datlist)){tabs[[i]] = round(matrix(apply(mapply(function(x,y) prop.table(table(x,y),1), fhats[[i]], f.vecs[[i]]),1,mean),ncol=3),5)}
+for(i in 1:length(datlist)){tabsU[[i]] = round(matrix(apply(mapply(function(x,y) prop.table(table(x,y),1), muhat.min[[i]], mu.min[[i]]),1,mean),ncol=3),5)}
+
+write.csv(do.call("rbind", tabs), "~jacquelinemauro/Dropbox/sorter/approxSim/ftables_bindingSm.csv")
+write.csv(do.call("rbind", tabsU), "~jacquelinemauro/Dropbox/sorter/approxSim/fUtables_bindingSm.csv")
+
+dU1 = data.frame(paste('$N^(1/',round(K),')$',sep = ""),
+                 round(unlist(lapply(psiUs.mat, function(a) a[1])),4),
+                 round(unlist(lapply(psihatU.mat, function(a) a[1])),4),
+                 rmse_uhat_u,bias_uhat_u,coverage_uhat_u,fU.correct)
+dU2 = data.frame(paste('$N^(1/',round(K),')$',sep = ""),
+                 round(unlist(lapply(psihatU2.mat, function(a) a[1])),4),
+                 round(unlist(lapply(psihatU.mat, function(a) a[1])),4),
+                 rmse_uhat_utilde,bias_uhat_utilde,coverage_uhat_utilde,fU.correct)
+dC1 = data.frame(paste('$N^(1/',round(K),')$',sep = ""),
+                 round(unlist(lapply(psis.mat, function(a) a[1])),4),
+                 round(unlist(lapply(psihat.mat, function(a) a[1])),4),
+                 rmse_chat_c,bias_chat_c,coverage_chat_c,f.correct)
+dC2 = data.frame(paste('$N^(1/',round(K),')$',sep = ""),
+                 round(unlist(lapply(psihat2.mat, function(a) a[1])),2),
+                 round(unlist(lapply(psihat.mat, function(a) a[1])),2),
+                 rmse_chat_ctilde,bias_chat_ctilde,coverage_chat_ctilde,f.correct)
+names(dU1) <- names(dU2) <- names(dC1) <- names(dC2) <- c('Rate','$\\psi$', 'Estimate', 'RMSE', 'Bias', '95% Coverage', 'Correct f %')
+write.csv(dU1, "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_binding_uhat_uSm.csv",row.names = F)
+write.csv(dU2, "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_binding_uhat_utildeSm.csv",row.names = F)
+write.csv(dC1, "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_binding_chat_cSm.csv",row.names = F)
+write.csv(dC2, "~jacquelinemauro/Dropbox/sorter/approxSim/sumstats_binding_chat_ctildeSm.csv",row.names = F)
+
+print(xtable(x = dU1, caption = 'Unconstrained Optimization, True Parameter',label = 'tab:dU1'), type = 'latex', sanitize.text.function = function(x){x}, include.rownames = F)
+print(xtable(x = dU2, caption = 'Unconstrained Optimization, Noisy f',label = 'tab:dU2'), type = 'latex', sanitize.text.function = function(x){x}, include.rownames = F)
+print(xtable(x = dC1, caption = 'Unconstrained Optimization, True Parameter',label = 'tab:dC1'), type = 'latex', sanitize.text.function = function(x){x}, include.rownames = F)
+print(xtable(x = dC2, caption = 'Unconstrained Optimization, Noisy f',label = 'tab:dC2'), type = 'latex', sanitize.text.function = function(x){x}, include.rownames = F)
+
+
+write.csv(cbind(K,matrix(unlist(psis.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/true_psi_bindingSm.csv")
+write.csv(cbind(K,matrix(unlist(psihat.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/allnoise_psihat_bindingSm.csv")
+write.csv(cbind(K,matrix(unlist(psihat2.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/fnoise_psihat_bindingSm.csv")
+write.csv(cbind(K,matrix(unlist(psiUs.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/true_psiU_bindingSm.csv")
+write.csv(cbind(K,matrix(unlist(psihatU.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/allnoise_notpsihatU_bindingSm.csv")
+write.csv(cbind(K,matrix(unlist(psihatU2.mat),ncol=2, byrow = T)), "~jacquelinemauro/Dropbox/sorter/approxSim/fnoise_psihatU_bindingSm.csv")
+
+out.constrained = data.frame(Rate = paste('N^(1/',round(K),')',sep = ""),
+                             TrueConstrained = unlist(lapply(psis.mat, function(a) a[1])),
+                             EstFConstrained = unlist(lapply(psihat2.mat, function(a) a[1])),
+                             EstAllConstrained = unlist(lapply(psihat.mat, function(a) a[1])))
+out.constrained$Lower95 = out.constrained$EstAllConstrained - 1.96*unlist(lapply(psihat.mat, function(a) a[2]))
+out.constrained$Upper95 = out.constrained$EstAllConstrained + 1.96*unlist(lapply(psihat.mat, function(a) a[2]))
+out.constrained[,-1] = round(100*out.constrained[,-1],2)
+write.csv(out.constrained, "~jacquelinemauro/Dropbox/sorter/approxSim/outConstrained_bindingSm.csv")
+
+out.unconstrained = data.frame(Rate = paste('N^(1/',round(K),')',sep = ""),
+                             TrueUnconstrained = unlist(lapply(psiUs.mat, function(a) a[1])),
+                             EstFUnconstrained = unlist(lapply(psihatU2.mat, function(a) a[1])),
+                             EstAllUnconstrained = unlist(lapply(psihatU.mat, function(a) a[1])))
+out.unconstrained$Lower95 = out.unconstrained$EstAllUnconstrained - 1.96*unlist(lapply(psihatU.mat, function(a) a[2]))
+out.unconstrained$Upper95 = out.unconstrained$EstAllUnconstrained + 1.96*unlist(lapply(psihatU.mat, function(a) a[2]))
+out.unconstrained[,-1] = round(100*out.unconstrained[,-1],2)
+write.csv(out.constrained, "~jacquelinemauro/Dropbox/sorter/approxSim/outUnconstrained_bindingSm.csv")
+

@@ -296,3 +296,23 @@ muhat <- diag(muhat.mat %*% t(assig.mat))
 plug.in.est <- mean(muhat)
 write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdApConstrPINewdatMuA.csv")
 
+##### make a figure of the results using A#####
+unconstrained <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsUnconstrNewdatNmA.csv")[,-1]
+constrained <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdatNmA.csv")[,-1]
+approx <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNmMuA.csv")[,-1]
+observed <- c(mean(df$y), NA)
+
+plot.df <- data.frame(rbind(unconstrained,constrained,approx,observed))
+plot.df$type <- c('Unconstrained', 'Constrained', 'Approx. Constrained','Observed')
+plot.df$type <- factor(plot.df$type,
+                       levels = c('Observed','Unconstrained', 'Constrained', 'Approx. Constrained'))
+
+require(ggplot2)
+g <- ggplot(plot.df, aes(x=type, y=est)) +
+  geom_errorbar(aes(ymin = est - sd, ymax = est + sd), width=.1) +
+  geom_line() +
+  geom_point()+
+  geom_hline(yintercept = plot.df$est[plot.df$type=='Observed'], col = 'red')+
+  xlab("Procedure") + ylab("Estimate") + theme_bw()
+ggsave(filename = '~jacquelinemauro/Dropbox/sorter/OutputScatterA.png',plot = g,height = 5, width = 7)
+

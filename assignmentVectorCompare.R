@@ -88,17 +88,30 @@ sec.level <- data.frame(A = names(dist.df), level = sec.level)
 # fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl.csv', header = F),1,which.max)
 # fO <- df$A
 
-# from named vector version
-fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNm.csv")[,-1]
-fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F),1,which.max)
+# from named vector version -- all outputs saved in EDA May file
+# fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNm.csv")[,-1]
+# fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nm.csv', header = F),1,which.max)
+# fO <- df$A
+# fA <- read.csv("~jacquelinemauro/Dropbox/sorter/RGassigvecApconstrNewdatNmMu.csv")[,-1]
+
+# including A as a covariate
+fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNmA.csv")[,-1]
+fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nmA.csv', header = F),1,which.max)
 fO <- df$A
-fA <- read.csv("~jacquelinemauro/Dropbox/sorter/RGassigvecApconstrNewdatNmMu.csv")[,-1]
+fA <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNmMuA.csv")[,-1]
+
 
 # set up datasets for each of the assignments
 D <- df; D$dist <- obsD
 dfU <- dfC <- dfA <- D
-dfC$A <- names(dist.df)[fC];dfU$A <- names(dist.df)[fU]; dfA$A <- names(dist.df)[fA]
-dfC <- merge(dfC,sec.level); dfU <- merge(dfU,sec.level); D <- merge(D,sec.level)
+dfC$A <- names(dist.df)[fC];dfU$A <- fU; dfA$A <- names(dist.df)[fA]
+D$A <- names(dist.df)[fO]
+dfC$A <- factor(dfC$A, levels = names(dist.df))
+dfU$A <- factor(dfU$A, levels = names(dist.df))
+dfA$A <- factor(dfA$A, levels = names(dist.df))
+D$A <- factor(D$A, levels = names(dist.df))
+
+# dfC <- merge(dfC,sec.level); dfU <- merge(dfU,sec.level); D <- merge(D,sec.level)
 
 # get new distances -- i'm sure there's a cleaner way but w/e
 unc.distance <- con.distance <- app.distance <- obsD
@@ -120,13 +133,14 @@ nms <- c('Recidivism','Prison','Length of Stay', 'White',
 
 ########## basic distributional changes ##########
 # how often do the vectors agree? almost never
+# constrained and approximat constrained agree 10% of the time
 mean(dfU$A==dfC$A)
 mean(dfU$A==dfA$A)
 mean(dfC$A==dfA$A)
-mean(fO==dfC$A)
-mean(fO==dfU$A)
-mean(fO == dfA$A)
-mean((fO==dfU$A)&(dfU$A==dfC$A))
+mean(D$A==dfC$A)
+mean(D$A==dfU$A)
+mean(D$A == dfA$A)
+mean((D$A==dfU$A)&(dfU$A==dfC$A))
 
 ########## do the count distributions change much? #########
 orig.dist <- table(D$A)
@@ -164,15 +178,17 @@ biggest.loser.unc <- dfU[which(dfU$A %in% names(sort(unc.change)[1:5])),]
 biggest.winner.unc <- dfU[which(dfU$A %in% names(tail(sort(unc.change),5))),]
 biggest.loser.con <- dfU[which(dfC$A %in% names(sort(con.change)[1:5])),]
 biggest.winner.con <- dfU[which(dfC$A %in% names(tail(sort(con.change),5))),]
+biggest.loser.app <- dfU[which(dfA$A %in% names(sort(app.change)[1:5])),]
+biggest.winner.app <- dfU[which(dfA$A %in% names(tail(sort(app.change),5))),]
 
 
-dist.diff.biglosebigwin.unc <- data.frame(losers = apply(biggest.loser.unc[,-2],2,mean),
-                                          winners = apply(biggest.winner.unc[,-2],2,mean))
-rownames(dist.diff.biglosebigwin.unc) <- nms[-2]
+dist.diff.biglosebigwin.unc <- data.frame(losers = apply(biggest.loser.unc[,-c(1,2,22)],2,mean),
+                                          winners = apply(biggest.winner.unc[,-c(1,2,22)],2,mean))
+rownames(dist.diff.biglosebigwin.unc) <- nms[-c(1,2,22)]
 
-dist.diff.biglosebigwin.con <- data.frame(losers = apply(biggest.loser.con[,-2],2,mean),
-                                          winners = apply(biggest.winner.con[,-2],2,mean))
-rownames(dist.diff.biglosebigwin.con) <- nms[-2]
+dist.diff.biglosebigwin.con <- data.frame(losers = apply(biggest.loser.con[,-c(1,2,22)],2,mean),
+                                          winners = apply(biggest.winner.con[,-c(1,2,22)],2,mean))
+rownames(dist.diff.biglosebigwin.con) <- nms[-c(1,2,22)]
 
 # do counts change by security level?
 temp <- as.data.frame(unc.change); names(temp) <- c('A','change')
@@ -185,9 +201,15 @@ temp <- merge(temp,sec.level)
 library(plyr)
 ddply(temp, .(level), summarize, mean.change = mean(change))
 
+temp <- as.data.frame(app.change); names(temp) <- c('A','change')
+temp <- merge(temp,sec.level)
+library(plyr)
+ddply(temp, .(level), summarize, mean.change = mean(change))
+
 ########## study the people who aren't moved #########
 unmovedC <- which(dfC$A == D$A)
 unmovedU <- which(dfU$A == D$A)
+unmovedA <- which(dfA$A == D$A)
 
 library(plyr)
 library(xtable)
@@ -202,16 +224,18 @@ Mode = function(x){
   return(mod)
 }
 
-unmoved.C.stats <- round(apply(D[unmovedC,-c(1,22)], 2, mean),2)
-unmoved.U.stats <- round(apply(D[unmovedU,-c(1,22)], 2, mean),2)
-all.data.stats <- round(apply(D[,-c(1,22)], 2, mean),2)
-pris.modeC <- names(pris.dummies)[which.max(count(D[unmovedC,1])[,2])]
-pris.modeU <- names(pris.dummies)[which.max(count(D[unmovedU,1])[,2])]
-pris.modeO <- names(pris.dummies)[which.max(count(D[,1])[,2])]
+unmoved.C.stats <- round(apply(D[unmovedC,-c(1,2,22)], 2, mean),2)
+unmoved.U.stats <- round(apply(D[unmovedU,-c(1,2,22)], 2, mean),2)
+unmoved.A.stats <- round(apply(D[unmovedU,-c(1,2,22)], 2, mean),2)
+all.data.stats <- round(apply(D[,-c(1,2,22)], 2, mean),2)
+pris.modeC <- names(which.max(table(dfC$A)))
+pris.modeU <- names(which.max(table(dfU$A)))
+pris.modeA <- names(which.max(table(dfA$A)))
+pris.modeO <- names(which.max(table(D$A)))
 
-unmoved.compare <- data.frame(Original = all.data.stats, Unconstrained = unmoved.U.stats, Constrained = unmoved.C.stats)
-unmoved.compare <- rbind(unmoved.compare[1,],c(pris.modeO,pris.modeU,pris.modeC),unmoved.compare[-1,])
-rownames(unmoved.compare) <- nms
+unmoved.compare <- data.frame(Original = all.data.stats, Unconstrained = unmoved.U.stats, Constrained = unmoved.C.stats, Approximate = unmoved.A.stats)
+unmoved.compare <- rbind(unmoved.compare[1,],c(pris.modeO,pris.modeU,pris.modeC,pris.modeA),unmoved.compare[-1,])
+rownames(unmoved.compare) <- c('Length of Stay', 'Modal Prison', nms[4:21])
 print(xtable(unmoved.compare, caption = 'Comparing those not moved'), file = "~jacquelinemauro/Dropbox/sorter/unmovedStats.tex")
 
 ########## compare distance before and after sort #########
@@ -219,18 +243,21 @@ print(xtable(unmoved.compare, caption = 'Comparing those not moved'), file = "~j
 summary(obsD)
 summary(dfU$dist)
 summary(dfC$dist)
+summary(dfA$dist)
 
 png('~jacquelinemauro/Dropbox/sorter/Figures/DistanceHistogram.png', width = 600, height = 400)
-par(mfrow = c(1,3))
-hist(obsD, xlab = "Observed Distance", main = "Observed", xlim = c(0,500))
-hist(dfU$dist, xlab = "Unconstrained Distance", main = "Unconstrained", xlim = c(0,500))
-hist(dfC$dist, xlab = "Constrained Distance", main = "Constrained", xlim = c(0,500))
+par(mfrow = c(2,2))
+hist(obsD, xlab = "Observed Distance", main = "Observed", xlim = c(0,500), breaks = 10)
+hist(dfU$dist, xlab = "Unconstrained Distance", main = "Unconstrained", xlim = c(0,500), breaks = 10)
+hist(dfC$dist, xlab = "Constrained Distance", main = "Constrained", xlim = c(0,500), breaks = 10)
+hist(dfA$dist, xlab = "Constrained Distance", main = "Approximate", xlim = c(0,500), breaks = 10)
 par(mfrow = c(1,1))
 dev.off()
 
-# how many are harmed -- a littl less than half
+# how many are harmed -- about a third
 mean(obsD < dfU$dist)
 mean(obsD < dfC$dist)
+mean(obsD < dfA$dist)
 
 ########## compare current recid_a vs. predicted after sort #########
 # ranger
@@ -244,14 +271,18 @@ pred.recid.unc = c(predict.SuperLearner(recid.model, newdata = dfU, onlySL = TRU
 pred.recid.con = c(predict.SuperLearner(recid.model, newdata = dfC, onlySL = TRUE)[[1]])
 
 # from the original output -- use this one
-muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNm.csv")[,-1])
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNmA.csv")[,-1])
 pred.recid.unc <- apply(muhat.mat,1,min)
+tempU <- sapply(names(pris.dummies), function(a) as.numeric(dfC$A == a))
 pred.recid.con <- diag(as.matrix(muhat.mat) %*% t(tempU))
+tempA <- sapply(names(pris.dummies), function(a) as.numeric(dfA$A == a))
+pred.recid.app <- diag(as.matrix(muhat.mat) %*% t(tempA))
 
 # overall dists
 summary(D$y)
 summary(pred.recid.unc)
 summary(pred.recid.con)
+summary(pred.recid.app)
 
 curr.recid <- data.frame(A = unique(D$A), Original = round(100*sapply(unique(D$A), function(a) mean(D$y[D$A == a])),2),
                          OriginalSD = round(100*sapply(unique(D$A), function(a) sd(D$y[D$A == a])),2))
@@ -259,7 +290,9 @@ unc.recid <- data.frame(A = unique(dfU$A), Unconstrained = round(100*sapply(uniq
                          UnconstrainedSD = round(100*sapply(unique(dfU$A), function(a) sd(pred.recid.unc[dfU$A == a])),2))
 con.recid <- data.frame(A = unique(dfC$A), Constrained = round(100*sapply(unique(dfC$A), function(a) mean(pred.recid.con[dfC$A == a])),2),
                         ConstrainedSD = round(100*sapply(unique(dfC$A), function(a) sd(pred.recid.con[dfC$A == a])),2))
-compare.recid <- merge(merge(curr.recid,unc.recid), con.recid)
+app.recid <- data.frame(A = unique(dfA$A), Approximate = round(100*sapply(unique(dfA$A), function(a) mean(pred.recid.app[dfA$A == a])),2),
+                        ApproximateSD = round(100*sapply(unique(dfA$A), function(a) sd(pred.recid.app[dfA$A == a])),2))
+compare.recid <- merge(merge(merge(curr.recid,unc.recid), con.recid),app.recid)
 
 #print(xtable(unmoved.compare, caption = 'Comparing Prediced Recidivism'), file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_ranger.tex")
 print(xtable(compare.recid, caption = 'Comparing Prediced Recidivism'), include.rownames = F, file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_sl.tex")
@@ -269,14 +302,16 @@ unc.recid.rd <- data.frame(A = unique(dfU$A), Unconstrained = round(100*sapply(u
                         UnconstrainedSD = round(100*sapply(unique(dfU$A), function(a) sd(round(pred.recid.unc)[dfU$A == a])),2))
 con.recid.rd <- data.frame(A = unique(dfC$A), Constrained = round(100*sapply(unique(dfC$A), function(a) mean(round(pred.recid.con)[dfC$A == a])),2),
                         ConstrainedSD = round(100*sapply(unique(dfC$A), function(a) sd(round(pred.recid.con)[dfC$A == a])),2))
-compare.recid.rd <- merge(merge(curr.recid,unc.recid.rd), con.recid.rd)
+app.recid.rd <- data.frame(A = unique(dfC$A), Approximate = round(100*sapply(unique(dfA$A), function(a) mean(round(pred.recid.app)[dfA$A == a])),2),
+                           ApproximateSD = round(100*sapply(unique(dfA$A), function(a) sd(round(pred.recid.app)[dfA$A == a])),2))
+compare.recid.rd <- merge(merge(merge(curr.recid,unc.recid.rd), con.recid.rd),app.recid.rd)
 
 #print(xtable(unmoved.compare, caption = 'Comparing Prediced Recidivism'), file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_ranger.tex")
 print(xtable(compare.recid.rd, caption = 'Comparing Prediced Recidivism'), include.rownames = F, file = "~jacquelinemauro/Dropbox/sorter/compPredRecid_sl_rounded.tex")
 
 
 png("~jacquelinemauro/Dropbox/sorter/Figures/chg_vs_recid.png")
-par(mfrow = c(1,2))
+par(mfrow = c(1,3))
 d<-data.frame(A = names(unc.change), change = c(unc.change))
 d<-merge(d,unc.recid)
 plot(d$change, d$Unconstrained,
@@ -291,6 +326,14 @@ plot(d$change, d$Constrained,
      ylab = "Predicted Recidivism at New Prison",
      main = "Constrained")
 par(mfrow = c(1,1))
+
+d<-data.frame(A = names(app.change), change = c(app.change))
+d<-merge(d,app.recid)
+plot(d$change, d$Approximate,
+     xlab = "Change in number of Inmates",
+     ylab = "Predicted Recidivism at New Prison",
+     main = "Approximate")
+par(mfrow = c(1,1))
 dev.off()
 
 ########## compare current visit_a vs. predicted after sort #########
@@ -299,6 +342,7 @@ dev.off()
 visit.model <- ranger::ranger(x11 ~ ., data = D, write.forest = T)
 pred.visit.unc <- predict(visit.model, data = dfU, type = 'response')$pre
 pred.visit.con <- predict(visit.model, data = dfC, type = 'response')$pre
+pred.visit.app <- predict(visit.model, data = dfA, type = 'response')$pre
 
 # superlearner -- think this is worse (has lots of errors and big negatives)
 visit.model <- SuperLearner(Y = D$x11, X = D[,-which(names(D)=="x11")], SL.library = c("SL.gam","SL.glm","SL.glm.interaction", "SL.mean","SL.ranger"))
@@ -310,27 +354,32 @@ pred.visit.con = c(predict.SuperLearner(visit.model, newdata = dfC, onlySL = TRU
 summary(D$x11)
 summary(pred.visit.unc)
 summary(pred.visit.con)
+summary(pred.visit.app)
 
 # overall dists - rounded
 summary(D$x11)
 summary(round(pred.visit.unc))
 summary(round(pred.visit.con))
+summary(round(pred.visit.app))
 
 # chance of <1 visit
 mean(D$x11==0)
 mean(pred.visit.unc<1)
 mean(pred.visit.con<1)
+mean(pred.visit.app<1)
 
 # dists of those visited
 summary(D$x11[D$x11>0])
 summary(pred.visit.unc[pred.visit.unc>=1])
 summary(pred.visit.con[pred.visit.con>=1])
+summary(pred.visit.app[pred.visit.app>=1])
 
 png("~jacquelinemauro/Dropbox/sorter/Figures/VisitsHists.png", width = 600, height = 400)
-par(mfrow = c(1,3))
+par(mfrow = c(2,2))
 hist(log(D$x11[D$x11>0]), xlim = c(0,7), main = "Observed", xlab = "Log of Visits Observed")
 hist(log(round(pred.visit.unc[pred.visit.unc>=1])), xlim = c(0,7), main = "Unconstrained", xlab = "Log of Visits Predicted")
 hist(log(round(pred.visit.con[pred.visit.con>=1])), xlim = c(0,7), main = "Constrained", xlab = "Log of Visits Predicted")
+hist(log(round(pred.visit.app[pred.visit.app>=1])), xlim = c(0,7), main = "Approximate", xlab = "Log of Visits Predicted")
 par(mfrow = c(1,1))
 dev.off()
 
@@ -342,7 +391,10 @@ unc.visit <- data.frame(A = unique(dfU$A), Unconstrained = round(sapply(unique(d
                         UnconstrainedSD = round(sapply(unique(dfU$A), function(a) sd(pred.visit.unc[dfU$A==a])),2))
 con.visit <- data.frame(A = unique(dfC$A), Constrained = round(sapply(unique(dfC$A), function(a) mean(pred.visit.con[dfC$A == a])),2),
                         ConstrainedSD = round(sapply(unique(dfC$A), function(a) sd(pred.visit.con[dfC$A == a])),2))
-compare.visit <- merge(merge(curr.visit,unc.visit), con.visit)
+app.visit <- data.frame(A = unique(dfA$A), Approximate = round(sapply(unique(dfA$A), function(a) mean(pred.visit.app[dfA$A == a])),2),
+                        ApproximateSD = round(sapply(unique(dfA$A), function(a) sd(pred.visit.app[dfA$A == a])),2))
+
+compare.visit <- merge(merge(merge(curr.visit,unc.visit), con.visit), app.visit)
 print(xtable(compare.visit, caption = 'Comparing Prediced Visits'), file = "~jacquelinemauro/Dropbox/sorter/compPredVisits_ranger.tex")
 
 # by prison- rounded
@@ -350,25 +402,38 @@ unc.visit.rd <- data.frame(A = unique(dfU$A), Unconstrained = round(sapply(uniqu
                         UnconstrainedSD = round(sapply(unique(dfU$A), function(a) sd(round(pred.visit.unc)[dfU$A==a])),2))
 con.visit.rd <- data.frame(A = unique(dfC$A), Constrained = round(sapply(unique(dfC$A), function(a) mean(round(pred.visit.con)[dfC$A == a])),2),
                         ConstrainedSD = round(sapply(unique(dfC$A), function(a) sd(round(pred.visit.con)[dfC$A == a])),2))
-compare.visit.rd <- merge(merge(curr.visit,unc.visit.rd), con.visit.rd)
+app.visit.rd <- data.frame(A = unique(dfA$A), Approximate = round(sapply(unique(dfA$A), function(a) mean(round(pred.visit.app)[dfA$A == a])),2),
+                           ApproximateSD = round(sapply(unique(dfA$A), function(a) sd(round(pred.visit.app)[dfA$A == a])),2))
+
+compare.visit.rd <- merge(merge(merge(curr.visit,unc.visit.rd), con.visit.rd),app.visit.rd)
 print(xtable(compare.visit, caption = 'Comparing Predicted Visits'), file = "~jacquelinemauro/Dropbox/sorter/compPredVisits_ranger_rounded.tex")
 
 
 ########## compare demographic concentration #############
 # using ICC
-
+library(ICC)
 get.icc <- function(covariate){
   i1 = ICCbare(as.factor(A), D[,covariate], D)
   i2 = ICCbare(as.factor(dfU$A), dfU[,covariate], dfU)
   i3 = ICCbare(as.factor(dfC$A), dfC[,covariate], dfC)
-  return(c(i1,i2,i3))
+  i4 = ICCbare(as.factor(dfA$A), dfA[,covariate], dfA)
+  return(c(i1,i2,i3,i4))
 }
 
 #icc's for predicted covariates at new location:
 #   visits, recidivism, misconducts
-icc.predicted.visit <- round(100*c(ICCbare(A,x11,D),ICCbare(dfU$A,pred.visit.unc),ICCbare(dfC$A,pred.visit.con)),2)
-icc.predicted.recid <- round(100*c(ICCbare(A,y,D),ICCbare(dfU$A,pred.recid.unc),ICCbare(dfC$A,pred.recid.con)),2)
-icc.predicted.recid.round <- round(100*c(ICCbare(A,y,D),ICCbare(dfU$A,round(pred.recid.unc)),ICCbare(dfC$A,round(pred.recid.con))),2)
+icc.predicted.visit <- round(100*c(ICCbare(A,x11,D),
+                                   ICCbare(dfU$A,pred.visit.unc),
+                                   ICCbare(dfC$A,pred.visit.con),
+                                   ICCbare(dfA$A,pred.visit.app)),2)
+icc.predicted.recid <- round(100*c(ICCbare(A,y,D),
+                                   ICCbare(dfU$A,pred.recid.unc),
+                                   ICCbare(dfC$A,pred.recid.con),
+                                   ICCbare(dfA$A,pred.recid.app)),2)
+icc.predicted.recid.round <- round(100*c(ICCbare(A,y,D),
+                                         ICCbare(dfU$A,round(pred.recid.unc)),
+                                         ICCbare(dfC$A,round(pred.recid.con)),
+                                         ICCbare(dfA$A,round(pred.recid.app))),2)
 
 # in paper, drop visits because those can change based on location
 baseline.covs <- which(nms %in% c("Length of Stay", "White","Urban",
@@ -376,9 +441,9 @@ baseline.covs <- which(nms %in% c("Length of Stay", "White","Urban",
                                   "lsir Score","Age","Custody Level",
                                   "Prior Incarcerations","Mental Health",
                                   "High School","Misconducts","Distance"))
-iccs <- as.data.frame(round(100*matrix(unlist(lapply(baseline.covs, function(C) get.icc(C))), ncol = 3, byrow = T),2))
+iccs <- as.data.frame(round(100*matrix(unlist(lapply(baseline.covs, function(C) get.icc(C))), ncol = 4, byrow = T),2))
 #iccs <- rbind(icc.predicted.recid, icc.predicted.visit, iccs)
-names(iccs) <- c("Observed", "Unconstrained", "Constrained")
+names(iccs) <- c("Observed", "Unconstrained", "Constrained","Approximate")
 #rownames(iccs) <- c("Recidivism","Visits Ever", nms[baseline.covs])
 rownames(iccs) <- c("Length of Stay", "White","Urban",
                     "Prior Arrests","Married","Violent",

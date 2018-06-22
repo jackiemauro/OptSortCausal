@@ -5,9 +5,50 @@
 #   optimize in matlab
 #   calculate plug in and if
 
-fudge.range <- c(1.05, 1.25, 1.5, 2, 4)
+dat <- read.csv('~jacquelinemauro/MergedData.csv')[,-1]
+dat$no.visits.last.loc <- (1 - dat$visitslastlocyn1)
+dat$no.childvisits <- (1 - dat$childyn)
+dat$maxtime <- apply(dat[,2:26],1,max)
+dat <- dat[-which(dat$NCRecid.Event == 'reincarceration'),] #drop if they go back for parole violation
+
+nm = names(dat)
+options(na.action='na.pass')
+county.f = factor(dat$CountyClass); county.dummies = model.matrix(~county.f)[,-c(1,2)]
+minName.f = factor(dat$minTimeName); minName.dummies = model.matrix(~minName.f)[,-c(1,2)]
+pris.dummies <- dat[,which(names(dat)=='alb'):which(names(dat)=='pit')]
+dist.mat <- dat[,which(nm=='ALB_time'):which(nm=='WAM_time')]
+names(dist.mat)<-names(pris.dummies)
+dat$A <- apply(pris.dummies,1,which.max)
+dat$nmA <- apply(pris.dummies,1,function(x) names(pris.dummies)[which.max(x)])
+
+covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='white')],dat[,which(nm=='urban'):which(nm=='ageyrs')],
+             dat[,which(nm=='custody_level'):which(nm=='numofpriorinc')],
+             dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],
+             dat[,which(nm=='child')], dat[,which(nm=='parent')], dat[,which(nm=='spouse')],
+             dat[,which(nm=='friendsnonfamily')],
+             dat[,which(nm=='numofpriormisconducts')]
+)
+
+df <- as.data.frame(cbind(dat$NCRecid3, dat$nmA, covs))
+to.keep <- complete.cases(df)
+df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved values
+names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = "")))
+obsD <- dat$total_time[to.keep]
+dist.mat <- as.matrix(dist.mat[to.keep,])
+pris.dummies <- pris.dummies[to.keep,]
+
+nms <- c('Recidivism','Prison','Length of Stay', 'White',
+         'Urban',"Prior Arrests" , "Married","Violent","lsir Score","Age",
+         "Custody Level","Prior Incarcerations","Visits at Last Location",
+         "Mental Health", "High School","Child Visits",
+         "Parent Visits","Spouse Visits","Friends Visits","Misconducts","Distance")
+
+# constraint is binding  up to about a factor 18
+fudge.range <- c(1.05, 1.25, 1.5, 2, 5)
 muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNmA.csv")[,-1])
 pihat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNmA.csv")[,-1])
+fhat <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNmA.csv")[,-1]
+fhat <- factor(fhat, levels = names(pris.dummies))
 
 if.out <- pi.out <- matrix(rep(NA,2*length(fudge.range)), ncol = 2)
 j = 1
