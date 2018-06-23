@@ -60,10 +60,11 @@ mu.pred.sl.nm.ap <- function(Xtest,Xtrain,aMat.test,a.val,mu.model,sl.lib= c("SL
   preds2 = c(predict.SuperLearner(mu.model, newdata = Xtrain, onlySL = TRUE)[[1]])
   return(list(preds1,preds2))
 }
-mu.pred.rg.nm.ap <- function(a.val, train.df, Xtrain, Xtest, aMat.test, mu.model){
+mu.pred.rg.nm.ap <- function(a.val, Xtrain, Xtest, aMat.test, mu.model){
   #not checked
   Xtest$obsD <- aMat.test[,names(aMat.test)==a.val]
   Xtest$A <- a.val; Xtest$A <- factor(Xtest$A, levels = names(aMat.test))
+  Xtrain$A <- a.val; Xtrain$A <- factor(Xtrain$A, levels = names(aMat.test))
   preds1 <- predict(mu.model, Xtest)$pre
   preds2 <- predict(mu.model, Xtrain)$pre
   return(list(preds1,preds2))

@@ -296,16 +296,36 @@ muhat <- diag(muhat.mat %*% t(assig.mat))
 plug.in.est <- mean(muhat)
 write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdApConstrPINewdatMuA.csv")
 
+#### June 22: calculate approximate constrained value using matching ####
+dist.df <- data.frame(dist.mat)
+out.approx.match.nm.slA <- approx.constr.opt.causal.nm(df, aLevel = dist.df, obsD = obsD, nsplits = 2, mu.algo = 'superlearner', pi.algo = 'superlearner', f.algo = 'match')
+write.csv(out.approx.match.nm.slA$ifvals, "~jacquelinemauro/Dropbox/sorter/SLifvalsApconstrMatchNewdatNmMuA.csv")
+write.csv(out.approx.match.nm.slA$fhat, "~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrMatchNewdatNmMuA.csv")
+write.csv(out.approx.match.nm.slA$muhat, "~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrMatchNewdatNmMuA.csv")
+write.csv(out.approx.match.nm.slA$pihat, "~jacquelinemauro/Dropbox/sorter/SLpihatApconstrMatchNewdatNmMuA.csv")
+write.csv(c(out.approx.match.nm.slA$psi,out.approx.match.nm.slA$sd),"~jacquelinemauro/Dropbox/sorter/SLestsApconstrMatchNewdatNmMuA.csv")
+
+# if you want the plug in
+muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatApconstrMatchNewdatNmMuA.csv")[,-1])
+assig.mu <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrMatchNewdatNmMuA.csv")[,-1]
+Avals <- names(pris.dummies)
+assig.mat <- sapply(Avals, function(x) as.numeric(Avals[assig.mu] == x))
+muhat <- diag(muhat.mat %*% t(assig.mat))
+plug.in.est <- mean(muhat)
+write.csv(cbind(plug.in.est, sd(muhat)), "~jacquelinemauro/Dropbox/sorter/SLestsdApConstrMatchPINewdatMuA.csv")
+
+
 ##### make a figure of the results using A#####
 unconstrained <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsUnconstrNewdatNmA.csv")[,-1]
 constrained <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsdConstrIFNewdatNmA.csv")[,-1]
 approx <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsApconstrNewdatNmMuA.csv")[,-1]
+approx.match <- read.csv("~jacquelinemauro/Dropbox/sorter/SLestsApconstrMatchNewdatNmMuA.csv")[,-1]
 observed <- c(mean(df$y), NA)
 
-plot.df <- data.frame(rbind(unconstrained,constrained,approx,observed))
-plot.df$type <- c('Unconstrained', 'Constrained', 'Approx. Constrained','Observed')
+plot.df <- data.frame(rbind(unconstrained,constrained,approx,approx.match,observed))
+plot.df$type <- c('Unconstrained', 'Constrained', 'Approx. Constr. Reg','Approx. Constr. Match', 'Observed')
 plot.df$type <- factor(plot.df$type,
-                       levels = c('Observed','Unconstrained', 'Constrained', 'Approx. Constrained'))
+                       levels = c('Observed','Unconstrained', 'Constrained','Approx. Constr. Reg','Approx. Constr. Match'))
 
 require(ggplot2)
 g <- ggplot(plot.df, aes(x=type, y=est)) +

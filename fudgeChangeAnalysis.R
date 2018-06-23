@@ -43,8 +43,8 @@ nms <- c('Recidivism','Prison','Length of Stay', 'White',
          "Mental Health", "High School","Child Visits",
          "Parent Visits","Spouse Visits","Friends Visits","Misconducts","Distance")
 
-# constraint is binding  up to about a factor 18
-fudge.range <- c(1.05, 1.25, 1.5, 2, 5)
+# constraint is binding  up to about a factor 18 (at 18, estimate is like unconstrained)
+fudge.range <- c(1.05, 1.25, 1.5, 2, 5, 10, 20)
 muhat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLmuhatUnconstrNewdatNmA.csv")[,-1])
 pihat.mat <- as.matrix(read.csv("~jacquelinemauro/Dropbox/sorter/SLpihatUnconstrNewdatNmA.csv")[,-1])
 fhat <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNmA.csv")[,-1]
@@ -55,25 +55,25 @@ j = 1
 for(fudge in fudge.range){
   constr <- round(apply(pris.dummies,2,sum)*fudge)
   write.csv(constr, "~jacquelinemauro/Dropbox/sorter/temp_constr.csv")
-  
+
   run_matlab_script("~jacquelinemauro/Dropbox/sorter/constrained_assign.m")
-  
+
   f.mat <- read.csv("~jacquelinemauro/Dropbox/sorter/temp_optfhat.csv", header = F)
   f.con <- names(pris.dummies)[apply(f.mat,1,which.max)]
-  
+
   muhat <- diag(muhat.mat %*% t(f.mat))
   plug.in.est <- mean(muhat)
   output.namePI <- paste("~jacquelinemauro/Dropbox/sorter/PIout",fudge,".csv", sep = "")
   write.csv(cbind(plug.in.est, sd(muhat)), output.namePI)
-  
+
   pihat <- diag(pihat.mat %*% t(f.mat))
-  
+
   ifvals <- (as.numeric(df$A == f.con)/pihat)*(df$y - muhat) + muhat
   est <- mean(ifvals)
   sd <- sd(ifvals)/sqrt(length(ifvals))
   output.nameIF <- paste("~jacquelinemauro/Dropbox/sorter/IFout",fudge,".csv", sep = "")
   write.csv(cbind(est, sd), output.nameIF)
-  
+
   if.out[j,] <- c(est,sd)
   pi.out[j,] <- c(plug.in.est, sd(muhat))
   j = j+1
@@ -88,8 +88,8 @@ plot.df <- data.frame(if.out, fudge.range)
 names(plot.df) <- c('Estimate', 'SD', 'Constraint')
 
 require(ggplot2)
-g <- ggplot(plot.df, aes(x = Constraint, y = Estimate)) + 
-  geom_errorbar(aes(ymin = Estimate - SD, ymax = Estimate + SD), width=.1) +
+g <- ggplot(plot.df, aes(x = Constraint, y = Estimate)) +
+  geom_errorbar(aes(ymin = Estimate - SD, ymax = Estimate + SD), width=.5) +
   geom_point() +
   geom_hline(yintercept = unconstrained[1], col = 'red')+
   xlab("Loosening of constraint") + ylab("Estimate") + theme_bw()

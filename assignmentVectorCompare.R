@@ -99,6 +99,7 @@ fU <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecUnconstrNewdatNmA.csv"
 fC <- apply(read.csv('~jacquelinemauro/Dropbox/sorter/prison_assignment_sl_nmA.csv', header = F),1,which.max)
 fO <- df$A
 fA <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrNewdatNmMuA.csv")[,-1]
+fAm <- read.csv("~jacquelinemauro/Dropbox/sorter/SLassigvecApconstrMatchNewdatNmMuA.csv")[,-1]
 
 
 # set up datasets for each of the assignments
