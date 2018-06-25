@@ -452,3 +452,208 @@ rownames(iccs) <- c("Length of Stay", "White","Urban",
                     "Prior Incarcerations","Mental Health",
                     "High School","Misconducts","Distance")
 print(xtable(iccs,caption = "Intraclass Correlation Coefficients",label = "tab:ICC"),file = "~jacquelinemauro/Dropbox/sorter/ICC.tex")
+
+##### redoing with checkfile_afactor outputs ####
+
+library(xtable)
+library(ICC)
+
+#load data
+dat <- read.csv('~jacquelinemauro/MergedData.csv')[,-1]
+dat <- dat[-which(dat$NCRecid.Event == 'reincarceration'),] #drop if they go back for parole violation
+
+nm = names(dat)
+pris.dummies <- dat[,which(names(dat)=='alb'):which(names(dat)=='pit')]
+avals <- sort(names(pris.dummies))
+pris.dummies = pris.dummies[,avals] #this is the important step, sorts pris.dummies alphabetically
+dist.df <- dat[,which(nm=='ALB_time'):which(nm=='WAM_time')]
+names(dist.df)<-avals
+dat$A <- apply(pris.dummies,1,which.max)
+dat$A <- factor(avals[dat$A], levels = avals)
+
+covs = cbind(dat[,which(nm=="loslastloc"):which(nm=='white')],dat[,which(nm=='urban'):which(nm=='ageyrs')],
+             dat[,which(nm=='custody_level'):which(nm=='numofpriorinc')],
+             dat[,which(nm=='visitslastloc1'):which(nm=='highschoolgrad')],
+             dat[,which(nm=='child')], dat[,which(nm=='parent')], dat[,which(nm=='spouse')],
+             dat[,which(nm=='friendsnonfamily')],
+             dat[,which(nm=='numofpriormisconducts')],
+             dat[,which(nm=='total_time')])
+
+df <- data.frame(Y = dat$NCRecid3, A = dat$A, covs)
+to.keep <- complete.cases(df)
+df <- df[complete.cases(df),]  # highschool grad the most missing, 63 unobserved values
+names(df) <- c('y', 'A',sapply(c(1:dim(covs)[2]), function(k) paste('x',k,sep = "")))
+dist.df <- dist.df[to.keep,]; dist.mat = matrix(dist.df)
+pris.dummies <- pris.dummies[to.keep,]
+
+nms <- c('Recidivism','Prison','Length of Stay', 'White',
+         'Urban',"Prior Arrests" , "Married","Violent","lsir Score","Age",
+         "Custody Level","Prior Incarcerations","Visits at Last Location",
+         "Mental Health", "High School","Child Visits",
+         "Parent Visits","Spouse Visits","Friends Visits","Misconducts","Distance")
+procedures = c('Original', 'Unconstrained', 'Constrained', 'Approximate Regression Constrained', 'Approximate Matching Constrained')
+
+# load outputs
+fs <- read.csv('~jacquelinemauro/Dropbox/sorter/checkfileassigvecs.csv')[,-1]
+avals <- sort(unique(df$A))
+fs <- data.frame(apply(fs,2, function(a) avals[a]))
+fs$assig.vecU <- factor(fs$assig.vecU, levels = avals)
+
+# results
+results <- read.csv("~jacquelinemauro/Dropbox/sorter/checkfileifresults.csv")[,-1]
+results$Lower95 <- results[,1] - 1.96*results[,2]
+results$Upper95 <- results[,1] + 1.96*results[,2]
+rownames(results) <- procedures[-1]
+colnames(results) <- c("Estimate", "SD", "Lower 95% CI", "Upper 95% CI")
+print(xtable(results), '~jacquelinemauro/Dropbox/sorter/results_checkfile.tex',include.rownames = T, type = 'latex')
+
+# how different are the assignments?
+diffs <- matrix(rep(NA,dim(fs)[2]*length(avals)), nrow = length(avals))
+for(i in 1:dim(fs)[2]){diffs[,i] <- table(fs[,i])-table(df$A)}
+
+quintsU = quantile(diffs[,1],probs = seq(from = 1/5, to = 1,length.out = 5))
+top5U = data.frame(A = avals[which(diffs[,1]>=quintsU[4])], change = diffs[which(diffs[,1]>=quintsU[4]),1])
+bot5U = data.frame(A = avals[which(diffs[,1]<=quintsU[1])], change = diffs[which(diffs[,1]<=quintsU[1]),1])
+print(xtable(top5U),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/top5U.tex',include.rownames = F, type = 'latex')
+print(xtable(bot5U),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/bot5U.tex',include.rownames = F, type = 'latex')
+
+quintsC = quantile(diffs[,2],probs = seq(from = 1/5, to = 1,length.out = 5))
+top5C = data.frame(A = avals[which(diffs[,2]>=quintsC[4])], change = diffs[which(diffs[,2]>=quintsC[4]),2])
+bot5C = data.frame(A = avals[which(diffs[,2]<=quintsC[1])], change = diffs[which(diffs[,2]<=quintsC[1]),2])
+print(xtable(top5C),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/top5C.tex',include.rownames = F, type = 'latex')
+print(xtable(bot5C),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/bot5C.tex',include.rownames = F, type = 'latex')
+
+quintsAr = quantile(diffs[,3],probs = seq(from = 1/5, to = 1,length.out = 5))
+top5Ar = data.frame(A = avals[which(diffs[,3]>=quintsAr[4])], change = diffs[which(diffs[,3]>=quintsAr[4]),3])
+bot5Ar = data.frame(A = avals[which(diffs[,3]<=quintsAr[1])], change = diffs[which(diffs[,3]<=quintsAr[1]),3])
+print(xtable(top5Ar),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/top5Ar.tex',include.rownames = F, type = 'latex')
+print(xtable(bot5Ar),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/bot5Ar.tex',include.rownames = F, type = 'latex')
+
+quintsAm = quantile(diffs[,4],probs = seq(from = 1/5, to = 1,length.out = 5))
+top5Am = data.frame(A = avals[which(diffs[,4]>=quintsAm[4])], change = diffs[which(diffs[,4]>=quintsAm[4]),4])
+bot5Am = data.frame(A = avals[which(diffs[,4]<=quintsAm[1])], change = diffs[which(diffs[,4]<=quintsAm[1]),4])
+print(xtable(top5Am),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/top5Am.tex',include.rownames = F, type = 'latex')
+print(xtable(bot5Am),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/bot5Am.tex',include.rownames = F, type = 'latex')
+
+top.changes = cbind(top5U,top5C,top5Ar,top5Am)
+print(xtable(top.changes),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/top5s.tex',include.rownames = F, type = 'latex')
+bot5C = bot5C[-c(5,6),] #png/pit also lose 5
+bot5Am = bot5Am[-c(5,6),] #png/pit also lose 5
+bot.changes = cbind(bot5U,bot5C,bot5Ar,bot5Am)
+print(xtable(bot.changes),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/bot5s.tex',include.rownames = F, type = 'latex')
+
+png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/RecidvsChange.png")
+par(mfrow = c(2,2))
+for(i in 2:5){
+  plot(tapply(X = recids$original, INDEX = df$A, FUN = mean),diffs[,(i-1)],
+       xlab = 'Observed Recidivism', ylab = "Change", main = procedures[i])
+}
+par(mfrow = c(1,1))
+dev.off()
+
+png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/PredRecidvsChange.png")
+par(mfrow = c(2,2))
+for(i in 2:5){
+  plot(tapply(X = recids[,i], INDEX = df$A, FUN = mean),diffs[,(i-1)],
+       xlab = 'Predicted Recidivism', ylab = "Change", main = procedures[i])
+}
+par(mfrow = c(1,1))
+dev.off()
+
+mean(df$A==fs$assig.vecU)
+mean(df$A==fs$assig.vecC)
+mean(df$A==fs$assig.vecAr)
+mean(df$A==fs$assig.vecAm)
+mean(fs$assig.vecU==fs$assig.vecC)
+mean(fs$assig.vecC==fs$assig.vecAr)
+mean(fs$assig.vecC==fs$assig.vecAm)
+
+dont.move <- c(mean(df$A==fs$assig.vecU),mean(df$A==fs$assig.vecC),mean(df$A==fs$assig.vecAr),mean(df$A==fs$assig.vecAm))
+
+sim.table <- matrix(rep(NA,16),ncol = 4)
+for(i in 1:4){for(j in 1:4){sim.table[i,j] = mean(fs[,i]==fs[,j])}}
+sim.table <- round(100*sim.table,2)
+sim.table <- rbind(round(100*dont.move,2), sim.table)
+rownames(sim.table) <- procedures
+colnames(sim.table) <- procedures[-1]
+
+print(xtable(sim.table),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/SimilarityTable.tex',include.rownames = T, type = 'latex')
+
+# is recidivism risk getting concentrated
+muhats <- read.csv('~jacquelinemauro/Dropbox/sorter/checkfilemuhat.csv')[,-1]
+names(muhats) <- avals
+pred.recid.unc <- apply(muhats,1,min)
+tempC <- sapply(avals, function(a) as.numeric(fs$assig.vecC == a))
+pred.recid.con <- diag(as.matrix(muhats) %*% t(tempC))
+tempAr <- sapply(avals, function(a) as.numeric(fs$assig.vecAr == a))
+pred.recid.appR <- diag(as.matrix(muhats) %*% t(tempAr))
+tempAm <- sapply(avals, function(a) as.numeric(fs$assig.vecAm == a))
+pred.recid.appM <- diag(as.matrix(muhats) %*% t(tempAm))
+
+recids <- data.frame(original = df$y, unconstrained = pred.recid.unc, constrained = pred.recid.con,
+                     approxR = pred.recid.appR, approxM = pred.recid.appM)
+recids.round <- round(recids)
+
+recid.icc <- recid.round.icc <- c()
+for(i in 1:5){recid.icc[i] = ICCbare(df$A, recids[,i])}
+for(i in 1:5){recid.round.icc[i] = ICCbare(df$A, recids.round[,i])}
+allrecid.icc = 100*cbind(recid.icc,recid.round.icc)
+rownames(allrecid.icc) = procedures
+
+print(xtable(allrecid.icc),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/recidICCs.tex',include.rownames = T, type = 'latex')
+
+
+
+# does distance change?
+distO = df$x19
+tempU = sapply(avals, function(a) as.numeric(fs$assig.vecU == a))
+distU = diag(as.matrix(dist.df) %*% t(tempU))
+distC = diag(as.matrix(dist.df) %*% t(tempC))
+distAr = diag(as.matrix(dist.df) %*% t(tempAr))
+distAm = diag(as.matrix(dist.df) %*% t(tempAm))
+dists = data.frame(distO,distU,distC,distAr,distAm); names(dists) <- procedures
+
+png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/DistanceHistograms.png")
+par(mfrow = c(3,2))
+for(i in 1:5){hist(dists[,i], main = procedures[i], xlab = "Distance in minutes")}
+par(mfrow = c(1,1))
+dev.off()
+print(xtable(apply(dists,2,summary)), '~jacquelinemauro/Dropbox/sorter/EDAoutputs/DistanceSummaries.tex',include.rownames = T, type = 'latex')
+
+# does predicted visitation change?
+visit.model <- ranger::ranger(x11 ~ ., data = df, write.forest = T)
+dfU <- df; dfU$A <- fs$assig.vecU; dfU$x19 <- distU
+dfC <- df; dfC$A <- fs$assig.vecC; dfU$x19 <- distC
+dfAr <- df; dfAr$A <- fs$assig.vecAr; dfU$x19 <- distAr
+dfAm <- df; dfAm$A <- fs$assig.vecAm; dfU$x19 <- distAm
+pred.visit.unc <- predict(visit.model, data = dfU, type = 'response')$pre
+pred.visit.con <- predict(visit.model, data = dfC, type = 'response')$pre
+pred.visit.appR <- predict(visit.model, data = dfAr, type = 'response')$pre
+pred.visit.appM <- predict(visit.model, data = dfAm, type = 'response')$pre
+visits = data.frame(df$x11,pred.visit.unc,pred.visit.con,pred.visit.appR,pred.visit.appM)
+names(visits) <- procedures
+visits.round <- round(visits)
+
+png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/VisitsHistograms.png")
+par(mfrow = c(3,2))
+for(i in 1:5){hist(visits[,i], main = procedures[i], xlab = "Visits at Last Location")}
+par(mfrow = c(1,1))
+dev.off()
+png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/LogVisitsHistograms.png")
+par(mfrow = c(3,2))
+for(i in 1:5){hist(log(visits[,i]), main = procedures[i], xlab = "Visits at Last Location")}
+par(mfrow = c(1,1))
+dev.off()
+png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/LogRoundVisitsHistograms.png")
+par(mfrow = c(3,2))
+for(i in 1:5){hist(log(visits.round[,i]), main = procedures[i], xlab = "Visits at Last Location")}
+par(mfrow = c(1,1))
+dev.off()
+print(xtable(apply(visits,2,summary)), '~jacquelinemauro/Dropbox/sorter/EDAoutputs/VisitsSummaries.tex',include.rownames = T, type = 'latex')
+print(xtable(apply(visits.round,2,summary)), '~jacquelinemauro/Dropbox/sorter/EDAoutputs/RoundVisitsSummaries.tex',include.rownames = T, type = 'latex')
+print(xtable(data.frame(apply(visits.round,2,function(a) mean(a<1)))),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/NoVisits.tex',include.rownames = T, type = 'latex')
+
+# why is hou different?
+hou.sum = data.frame(Houtzdale = apply(df[df$A=='hou',-c(2)],2,mean), All = apply(df[,-c(2)],2,mean))
+rownames(hou.sum) <- nms[-2]
+print(xtable(hou.sum),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/HoutzdaleStats.tex',include.rownames = T, type = 'latex')
