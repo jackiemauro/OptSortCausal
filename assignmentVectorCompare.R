@@ -498,6 +498,8 @@ fs <- read.csv('~jacquelinemauro/Dropbox/sorter/checkfileassigvecs.csv')[,-1]
 avals <- sort(unique(df$A))
 fs <- data.frame(apply(fs,2, function(a) avals[a]))
 fs$assig.vecU <- factor(fs$assig.vecU, levels = avals)
+A = df$A
+A = factor(df$A, levels = avals)
 
 # results
 results <- read.csv("~jacquelinemauro/Dropbox/sorter/checkfileifresults.csv")[,-1]
@@ -612,6 +614,12 @@ distC = diag(as.matrix(dist.df) %*% t(tempC))
 distAr = diag(as.matrix(dist.df) %*% t(tempAr))
 distAm = diag(as.matrix(dist.df) %*% t(tempAm))
 dists = data.frame(distO,distU,distC,distAr,distAm); names(dists) <- procedures
+
+dist.harm <- data.frame(Unconstrained = mean(distU > distO),
+                        Constrained = mean(distC > distO),
+                        Regression = mean(distAr > distO),
+                        Matching = mean(distAm > distO))
+print(xtable(dist.harm), '~jacquelinemauro/Dropbox/sorter/EDAoutputs/DistanceHarm.tex',include.rownames = T, type = 'latex')
 
 png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/DistanceHistograms.png")
 par(mfrow = c(3,2))
