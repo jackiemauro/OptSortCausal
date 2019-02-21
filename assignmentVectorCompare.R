@@ -457,6 +457,7 @@ print(xtable(iccs,caption = "Intraclass Correlation Coefficients",label = "tab:I
 
 library(xtable)
 library(ICC)
+library(plyr)
 
 #load data
 dat <- read.csv('~jacquelinemauro/MergedData.csv')[,-1]
@@ -500,6 +501,7 @@ fs <- data.frame(apply(fs,2, function(a) avals[a]))
 fs$assig.vecU <- factor(fs$assig.vecU, levels = avals)
 A = df$A
 A = factor(df$A, levels = avals)
+write.csv(data.frame(A,fs), '~jacquelinemauro/Dropbox/sorter/fs_for_app.csv')
 
 # results
 results <- read.csv("~jacquelinemauro/Dropbox/sorter/checkfileifresults.csv")[,-1]
@@ -509,9 +511,47 @@ rownames(results) <- procedures[-1]
 colnames(results) <- c("Estimate", "SD", "Lower 95% CI", "Upper 95% CI")
 print(xtable(results), '~jacquelinemauro/Dropbox/sorter/results_checkfile.tex',include.rownames = T, type = 'latex')
 
+# basic scatters of observed vs. optimized counts
+count.obs <- c(table(df$A))
+countU <- c(table(fs[,1]))
+countC <- c(table(fs[,2]))
+countAr <- c(table(fs[,3]))
+countAm <- c(table(fs[,4]))
+
+obsVu <- ggplot(data.frame(Observed = count.obs, Unconstrained = countU)) +
+  geom_point(aes(x = Observed, y = Unconstrained))+
+  #geom_abline(intercept = 0, slope = 1)+
+  theme_bw()
+obsVc <- ggplot(data.frame(Observed = count.obs, Constrained = countC)) +
+  geom_point(aes(x = Observed, y = Constrained))+
+  theme_bw()
+obsVAr <- ggplot(data.frame(Observed = count.obs, Regression = countAr)) +
+  geom_point(aes(x = Observed, y = Regression))+
+  theme_bw()
+obsVAm <- ggplot(data.frame(Observed = count.obs, Matching = countAm)) +
+  geom_point(aes(x = Observed, y = Matching))+
+  theme_bw()
+cVAm <- ggplot(data.frame(Constrained = countC, Matching = countAm)) +
+  geom_point(aes(x = Constrained, y = Matching))+
+  theme_bw()
+cVAr <- ggplot(data.frame(Constrained = countC, Regression = countAr)) +
+  geom_point(aes(x = Constrained, y = Regression))+
+  theme_bw()
+
+ggsave(obsVu, filename = '~jacquelinemauro/Dropbox/sorter/Figures/obsVu.png', height = 4, width = 6)
+ggsave(obsVc, filename = '~jacquelinemauro/Dropbox/sorter/Figures/obsVc.png', height = 4, width = 6)
+ggsave(obsVAr, filename = '~jacquelinemauro/Dropbox/sorter/Figures/obsVAr.png', height = 4, width = 6)
+ggsave(obsVAm, filename = '~jacquelinemauro/Dropbox/sorter/Figures/obsVAm.png', height = 4, width = 6)
+ggsave(cVAm, filename = '~jacquelinemauro/Dropbox/sorter/Figures/cVAm.png', height = 4, width = 6)
+ggsave(cVAr, filename = '~jacquelinemauro/Dropbox/sorter/Figures/cVAr.png', height = 4, width = 6)
+
 # how different are the assignments?
 diffs <- matrix(rep(NA,dim(fs)[2]*length(avals)), nrow = length(avals))
 for(i in 1:dim(fs)[2]){diffs[,i] <- table(fs[,i])-table(df$A)}
+
+prop.diffs <- diffs
+for(i in 1:dim(fs)[2]){prop.diffs[,i] <- (table(fs[,i])-table(df$A))/table(fs[,i])}
+
 
 quintsU = quantile(diffs[,1],probs = seq(from = 1/5, to = 1,length.out = 5))
 top5U = data.frame(A = avals[which(diffs[,1]>=quintsU[4])], change = diffs[which(diffs[,1]>=quintsU[4]),1])
@@ -543,6 +583,19 @@ bot5C = bot5C[-c(5,6),] #png/pit also lose 5
 bot5Am = bot5Am[-c(5,6),] #png/pit also lose 5
 bot.changes = cbind(bot5U,bot5C,bot5Ar,bot5Am)
 print(xtable(bot.changes),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/bot5s.tex',include.rownames = F, type = 'latex')
+
+top5.prop <- bot5.prop <- c(1:5)
+for(i in 1:dim(prop.diffs)[2]){
+  quints <- quantile(prop.diffs[,i], probs = seq(from = 1/5, to = 1,length.out = 5))
+  temp.top = data.frame(A = avals[which(prop.diffs[,i]>=quints[4])], change = prop.diffs[which(prop.diffs[,i]>=quints[4]),i])
+  temp.bot = data.frame(A = avals[which(prop.diffs[,i]<=quints[1])], change = prop.diffs[which(prop.diffs[,i]<=quints[1]),i])
+  top5.prop <- cbind(top5.prop, temp.top)
+  bot5.prop <- cbind(bot5.prop, temp.bot)
+}
+write.csv(top5.prop[,-1], '~jacquelinemauro/Dropbox/sorter/EDAoutputs/top5_props.csv')
+write.csv(bot5.prop[,-1], '~jacquelinemauro/Dropbox/sorter/EDAoutputs/bot5_props.csv')
+
+
 
 png("~jacquelinemauro/Dropbox/sorter/EDAoutputs/RecidvsChange.png")
 par(mfrow = c(2,2))
@@ -604,8 +657,6 @@ rownames(allrecid.icc) = procedures
 
 print(xtable(allrecid.icc),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/recidICCs.tex',include.rownames = T, type = 'latex')
 
-
-
 # does distance change?
 distO = df$x19
 tempU = sapply(avals, function(a) as.numeric(fs$assig.vecU == a))
@@ -627,6 +678,13 @@ for(i in 1:5){hist(dists[,i], main = procedures[i], xlab = "Distance in minutes"
 par(mfrow = c(1,1))
 dev.off()
 print(xtable(apply(dists,2,summary)), '~jacquelinemauro/Dropbox/sorter/EDAoutputs/DistanceSummaries.tex',include.rownames = T, type = 'latex')
+
+apply(dists[,-1],2, function(a) mean(a - dists$Original) )
+among.harmed <- rep(NA,4)
+for(i in 1:4){
+  among.harmed[i] = mean((dists[,(i+1)] - dists$Original)[dists[,(i+1)]>dists$Original])
+}
+
 
 # does predicted visitation change?
 visit.model <- ranger::ranger(x11 ~ ., data = df, write.forest = T)
@@ -661,7 +719,49 @@ print(xtable(apply(visits,2,summary)), '~jacquelinemauro/Dropbox/sorter/EDAoutpu
 print(xtable(apply(visits.round,2,summary)), '~jacquelinemauro/Dropbox/sorter/EDAoutputs/RoundVisitsSummaries.tex',include.rownames = T, type = 'latex')
 print(xtable(data.frame(apply(visits.round,2,function(a) mean(a<1)))),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/NoVisits.tex',include.rownames = T, type = 'latex')
 
+no.visits <- c(apply(visits.round,2,function(a) mean(a==0)))
+
 # why is hou different?
 hou.sum = data.frame(Houtzdale = apply(df[df$A=='hou',-c(2)],2,mean), All = apply(df[,-c(2)],2,mean))
 rownames(hou.sum) <- nms[-2]
 print(xtable(hou.sum),'~jacquelinemauro/Dropbox/sorter/EDAoutputs/HoutzdaleStats.tex',include.rownames = T, type = 'latex')
+
+# baseline covariates
+big.changes <- list(top5U,bot5U,top5C,bot5C,top5Ar,bot5Ar,top5Am,bot5Am)
+baseline.covs <- data.frame(matrix(rep(NA,20*8),ncol = 20))
+for(i in 1:length(big.changes)){
+  temp.df <- df[which(df$A %in% big.changes[[i]]$A),-2]
+  baseline.covs[i,] <- apply(temp.df,2,mean)
+}
+baseline.covs <- rbind(apply(df[,-2],2,mean), baseline.covs)
+names(baseline.covs) <- nms[-2]
+rownames(baseline.covs) <- c('Overall Average',
+                             'Top 5 Unconstrained', 'Bottom 5 Unconstrained',
+                             'Top 5 Constrained', 'Bottom 5 Constrained',
+                             'Top 5 Regression-based', 'Bottom 5 Regression-based',
+                             'Top 5 Matching-based', 'Bottom 5 Matching-based'
+                             )
+
+cov.name <- rep(nms[-2],8)
+est.type <- rep(rep(c("1","2","3","4"),each = 20),2)
+pos.neg <- c(rep("Positive",80),rep("Negative",80))
+orig.values <- apply(df[,-2],2,mean)
+pos.vals <- neg.vals <- NA
+for(i in 1:4){pos.vals <- c(pos.vals,apply(df[which(df$A %in% sort(unique(df$A))[which(diffs[,i]>0)]),-2],2,mean)-orig.values)}
+for(i in 1:4){neg.vals <- c(neg.vals,apply(df[which(df$A %in% sort(unique(df$A))[which(diffs[,i]<=0)]),-2],2,mean)-orig.values)}
+pos.vals <- pos.vals[-1]; neg.vals <- neg.vals[-1]
+
+baseline.covs <- data.frame(Value = c(pos.vals,neg.vals),Covariate = cov.name, Procedure = est.type, Change = pos.neg)
+
+library(ggplot2)
+library(RColorBrewer)
+g <- ggplot(baseline.covs, aes(Procedure, Value, fill = Change)) +
+  geom_col()+
+  facet_wrap(~Covariate, scales = "free")+
+  theme_bw()+
+  theme(legend.position = 'bottom', axis.title.y=element_blank(),
+        text = element_text(size=8))+
+  scale_fill_brewer(palette = 'Paired')
+
+ggsave(g, filename = '~jacquelinemauro/Dropbox/sorter/Figures/baselineCovariates.png', height = 6, width = 6)
+
